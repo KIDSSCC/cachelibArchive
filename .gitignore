@@ -1,0 +1,5 @@
+*.tdb
+*.tdi
+.vscode
+Build
+build

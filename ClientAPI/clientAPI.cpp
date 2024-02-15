@@ -107,3 +107,35 @@ bool CachelibClient::delKV(string key)
     }
     return snd.res;
 }
+
+void set_util(int msgid,m_set_c* snd)
+{
+    if(msgsnd(msgid, snd, sizeof(m_set_c)-sizeof(long),0)==-1)
+    {
+        perror("msgsnd");
+        exit(EXIT_FAILURE);
+    }
+    if(msgrcv(msgid,snd,sizeof(m_set_c)-sizeof(long),SETKV_S,0)==-1)
+    {
+        perror("msgrcv");
+        exit(EXIT_FAILURE);
+    }
+}
+
+void CachelibClient::setKV_async(string key,string value)
+{
+    m_set_c snd;
+    snd.mtype=SETKV_C;
+    snd.pid=this->pid;
+    //增加前缀
+    strcpy(snd.key,(this->prefix+key).c_str());
+    strcpy(snd.value,value.c_str());
+    future<void> setoper=async(launch::async,set_util,this->msgid,&snd);
+}
+
+/*
+void CachelibClient::delKV_async(string key)
+{
+    future<void> deloper=async(launch::async,this->delKV,key);
+}
+*/

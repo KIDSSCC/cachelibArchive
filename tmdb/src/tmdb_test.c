@@ -5,6 +5,7 @@
 
 #include<iostream>
 #include<vector>
+#include<random>
 
 //#define CACHELIB_LOCAL
 
@@ -85,19 +86,23 @@ int _db_read_test(int total, char *df){
 		printf("db_open() %s fail.\n", df);
 		return 0;
 	}
+
+	std::random_device rd;
+	std::mt19937 gen(rd());
+	std::uniform_int_distribution<int> dis(0,total-1);
+
 	clock_t start, finish;   
 	double duration;   
 	start=clock();
 
 	
 	for (i=0; i<total; i++){
-		sprintf(n, "num%d", i);
+		int num=dis(gen);
+		sprintf(n, "num%d", num);
 		dat = tdb_fetch(db, n);
-		if (dat == ("value_" + std::to_string(i) + prefix)){
+		if (dat == ("value_" + std::to_string(num) + prefix)){
 			success++;
 		}
-		//cout<<"get value is: "<<dat<<endl;
-		//cout<<"tar value is: "<<"value_" + std::to_string(i) + prefix<<endl;
 	}
 	tdb_close(db);
 

@@ -2,7 +2,7 @@
 #define MESSAHE_INFO
 
 #define MSG_KEY 1412
-#define MSG_SIZE 256
+#define MSG_SIZE 512
 
 #define ADDPOOL_C 1
 #define ADDPOOL_S 11

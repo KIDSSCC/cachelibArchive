@@ -45,12 +45,14 @@ void listen_set()
             exit(EXIT_FAILURE);
         }
         rcv.res=set_(rcv.pid,rcv.key,rcv.value);
+        /*
         rcv.mtype = SETKV_S;
         if(msgsnd(msgid, &rcv, sizeof(m_set_c)-sizeof(long), 0) == -1) 
         {
             perror("msgsnd");
             exit(EXIT_FAILURE);
         }
+        */
     }
 }
 void listen_get()

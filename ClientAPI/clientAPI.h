@@ -20,6 +20,9 @@ private:
     int pid;
     int msgid;
     string prefix;
+
+    m_set_c* set_snd;
+    m_get_c* get_snd;
 public:
     int getHit;
     CachelibClient();

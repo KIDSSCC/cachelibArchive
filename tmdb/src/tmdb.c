@@ -1116,12 +1116,15 @@ char *tdb_fetch(TDB *db, const char *key){
 }
 
 
+
+
 /**
  * Store data
  */
 STATUS tdb_store(TDB *db, const char *key, const char *value, int mode) {
 	
 	#ifdef KID_CACHELIB
+		//future<void> res = async(launch::async,setKV_async,db,key,value);
 		db->client->setKV(key, value);
 	#endif
 

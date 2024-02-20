@@ -25,7 +25,7 @@
 	宏定义KID_CACHELIB_LOCAL本地连接cachelib
 */
 #define KIDSSCC
-//#define KID_CACHELIB
+#define KID_CACHELIB
 //#define KID_CACHELIB_LOCAL
 
 #ifdef KIDSSCC
@@ -807,7 +807,6 @@ STATUS	_db_delete(TDB *db, const char *key){
  *
  */
 char *_db_fetch(TDB *db, const char *key){
-	cout<< "in _db_fetch\n";
 	//Check param
 	if ( NULL == db || NULL == key ){
 		return NULL;
@@ -836,7 +835,6 @@ char *_db_fetch(TDB *db, const char *key){
 
 	//Find key exist, read data
 	if ( KEY_EXIST == ret ){
-		cout<<"key exist\n";
 		int len = 0, dat_len = 0;
 		char *dat_buf = NULL; 
 		char *ret_buf = NULL;
@@ -868,8 +866,8 @@ char *_db_fetch(TDB *db, const char *key){
 		free(dat_buf);
 		dat_buf = NULL;
 
-		
 		return (char *)ret_buf;
+		
 	}
 
 	return NULL;

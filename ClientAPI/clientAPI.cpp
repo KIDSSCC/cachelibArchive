@@ -2,6 +2,7 @@
 
 CachelibClient::CachelibClient()
 {
+    cout<<"------message queue------\n";
     this->msgid=msgget(MSG_KEY, 0666);
     if (this->msgid == -1) 
     {

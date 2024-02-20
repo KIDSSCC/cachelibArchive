@@ -2,7 +2,8 @@
 #define MESSAHE_INFO
 
 #define MSG_KEY 1412
-#define MSG_SIZE 512
+#define MSG_KEY_SIZE 512
+#define MSG_VALUE_SIZE 1024
 
 #define ADDPOOL_C 1
 #define ADDPOOL_S 11
@@ -16,7 +17,7 @@
 struct m_addpool_c
 {
     long mtype;
-    char name[MSG_SIZE];
+    char name[MSG_KEY_SIZE];
     int pid;
 };
 
@@ -24,23 +25,23 @@ struct m_set_c
 {
     long mtype;
     int pid;
-    char key[MSG_SIZE];
-    char value[MSG_SIZE];
+    char key[MSG_KEY_SIZE];
+    char value[MSG_VALUE_SIZE];
     bool res;
 };
 
 struct m_get_c
 {
     long mtype;
-    char key[MSG_SIZE];
-    char value[MSG_SIZE];
+    char key[MSG_KEY_SIZE];
+    char value[MSG_VALUE_SIZE];
     bool res;
 };
 
 struct m_del_c
 {
     long mtype;
-    char key[MSG_SIZE];
+    char key[MSG_KEY_SIZE];
     bool res;
 };
 

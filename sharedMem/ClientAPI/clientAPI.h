@@ -17,15 +17,16 @@
 #include "messageInfo.h"
 
 
-#define SHM_SIZE 512
+#define SHM_KEY_SIZE 512
+#define SHM_VALUE_SIZE 1024
 
 using namespace std;
 struct shm_stru
 {
     int ctrl;
     int pid;
-    char key[SHM_SIZE];
-    char value[SHM_SIZE];
+    char key[SHM_KEY_SIZE];
+    char value[SHM_VALUE_SIZE];
 };
 
 class CachelibClient

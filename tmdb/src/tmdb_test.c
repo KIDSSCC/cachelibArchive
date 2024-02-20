@@ -18,7 +18,7 @@
 int _db_insert_test(int total, char *df);
 int _db_read_test(int total, char *df);
 
-std::string prefix (512, 'A');
+std::string prefix (1023, 'A');
 
 /**
  * data insert
@@ -50,9 +50,8 @@ int _db_insert_test(int total, char *df){
 	start=clock();
 	
 	for (i=0; i<total; i++){
-		cout<<i<<endl;
 		sprintf(n, "num%d", i);
-		s = tdb_store(db, n, ("value_" + std::to_string(i) + prefix).c_str(), TDB_INSERT);
+		s = tdb_store(db, n, prefix.c_str(), TDB_INSERT);
 		if (TDB_SUCCESS == s){
 			success++;
 		}
@@ -98,12 +97,11 @@ int _db_read_test(int total, char *df){
 
 	
 	for (i=0; i<total; i++){
-		cout<<i<<endl;
 		int num=dis(gen);
 		sprintf(n, "num%d", num);
 		
 		dat = tdb_fetch(db, n);
-		if (dat == ("value_" + std::to_string(num) + prefix)){
+		if (dat == prefix){
 			success++;
 		}
 	}
@@ -180,16 +178,10 @@ int main(){
 	printf("============= performance test ===========\n");
 	
 	char df[] = "tdb_data_test";
-	int total = 10;
+	int total = 1000000;
 	_db_insert_test(total, df);
 	_db_read_test(total, df);
-	/*total = 500000;
-	_db_insert_test(total, df);
-	_db_read_test(total, df);
-	total = 1000000;
-	_db_insert_test(total, df);
-	_db_read_test(total, df);
-	*/
+	
 	#ifdef CACHELIB_LOCAL
 		facebook::cachelib_examples::destroyCache();
 	#endif

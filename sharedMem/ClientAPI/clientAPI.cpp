@@ -3,6 +3,7 @@
 
 CachelibClient::CachelibClient()
 {
+    cout<<"------shared memory------\n";
     this->msgid=msgget(MSG_KEY, 0666);
     if (this->msgid == -1) 
     {
@@ -60,7 +61,6 @@ int CachelibClient::addpool(string poolName)
         perror("msgrcv");
         exit(EXIT_FAILURE);
     }
-    cout<<"get pool pid is: "<<snd.pid<<endl;
     this->pid=snd.pid;
     this->prefix = to_string(pid) + "_";
 

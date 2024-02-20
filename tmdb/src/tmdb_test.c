@@ -18,7 +18,7 @@
 int _db_insert_test(int total, char *df);
 int _db_read_test(int total, char *df);
 
-std::string prefix (100, 'A');
+std::string prefix (512, 'A');
 
 /**
  * data insert
@@ -50,6 +50,7 @@ int _db_insert_test(int total, char *df){
 	start=clock();
 	
 	for (i=0; i<total; i++){
+		cout<<i<<endl;
 		sprintf(n, "num%d", i);
 		s = tdb_store(db, n, ("value_" + std::to_string(i) + prefix).c_str(), TDB_INSERT);
 		if (TDB_SUCCESS == s){
@@ -97,8 +98,10 @@ int _db_read_test(int total, char *df){
 
 	
 	for (i=0; i<total; i++){
+		cout<<i<<endl;
 		int num=dis(gen);
 		sprintf(n, "num%d", num);
+		
 		dat = tdb_fetch(db, n);
 		if (dat == ("value_" + std::to_string(num) + prefix)){
 			success++;
@@ -177,7 +180,7 @@ int main(){
 	printf("============= performance test ===========\n");
 	
 	char df[] = "tdb_data_test";
-	int total = 500000;
+	int total = 10;
 	_db_insert_test(total, df);
 	_db_read_test(total, df);
 	/*total = 500000;

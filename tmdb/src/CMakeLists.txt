@@ -23,7 +23,7 @@ target_link_libraries(tmdb
   ClientAPI 
  )
 
-# set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g")
 add_executable(tmdb_test ${FILE_PATH}/tmdb_test.c)
 target_link_libraries(
   tmdb_test 

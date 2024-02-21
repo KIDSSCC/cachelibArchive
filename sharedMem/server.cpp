@@ -89,6 +89,7 @@ void sharedMemCtl(char* appName)
             case 0:
                 //set操作
                 set_(getMessage->pid,getMessage->key,getMessage->value);
+                //cout<<"set operation---key is: "<<getMessage->key<<" and value is: "<<getMessage->value<<endl;
                 //释放资源
                 sem_post(semaphore_Server);
                 break;
@@ -96,6 +97,7 @@ void sharedMemCtl(char* appName)
                 //get操作
                 getValue=get_(getMessage->key);
                 strcpy(getMessage->value,getValue.c_str());
+                //cout<<"get operation---key is: "<<getMessage->key<<" and value is: "<<getMessage->value<<endl;
                 sem_post(semaphore_GetBack);
                 break;
             case 2:

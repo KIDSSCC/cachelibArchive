@@ -46,11 +46,12 @@ public:
     void prepare_shm(string appName);
     int addpool(string poolName);
     bool setKV(string key,string value);
-    string getKV(string key);
+    char* getKV(string key);
     bool delKV(string key);
+
     //util
     int getPid(){return this->pid;};
-
+    void setKV_util(string key,string value);
     int getHit;
 };
 #endif

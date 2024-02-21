@@ -1106,8 +1106,8 @@ void tdb_close(TDB *db) {
  */
 char *tdb_fetch(TDB *db, const char *key){
 	#ifdef KID_CACHELIB
-		std::string res = db->client->getKV(key);
-		return res==""?_db_fetch(db, key):res.data();
+		char* res = db->client->getKV(key);
+		return strlen(res)==0?_db_fetch(db, key):res;
 	#endif
 
 	#ifdef KID_CACHELIB_LOCAL
@@ -1128,8 +1128,7 @@ char *tdb_fetch(TDB *db, const char *key){
 STATUS tdb_store(TDB *db, const char *key, const char *value, int mode) {
 	
 	#ifdef KID_CACHELIB
-		//future<void> res = async(launch::async,setKV_async,db,key,value);
-		db->client->setKV(key, value);
+		db->client->setKV_util(key, value);
 	#endif
 
 	#ifdef KID_CACHELIB_LOCAL

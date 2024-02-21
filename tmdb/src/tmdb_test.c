@@ -7,6 +7,9 @@
 #include<vector>
 #include<random>
 
+
+#include<thread>
+using namespace std;
 //#define CACHELIB_LOCAL
 
 //-----------------------------
@@ -18,7 +21,11 @@
 int _db_insert_test(int total, char *df);
 int _db_read_test(int total, char *df);
 
-std::string prefix (1023, 'A');
+int kidsscc_db_insert_test(int total,char*df);
+int kidsscc_db_read_test(int total,char*df);
+
+using namespace std;
+string prefix (10, 'A');
 
 /**
  * data insert
@@ -51,7 +58,8 @@ int _db_insert_test(int total, char *df){
 	
 	for (i=0; i<total; i++){
 		sprintf(n, "num%d", i);
-		s = tdb_store(db, n, prefix.c_str(), TDB_INSERT);
+		string value(10,char('A'+i%26));
+		s = tdb_store(db, n, value.c_str(), TDB_INSERT);
 		if (TDB_SUCCESS == s){
 			success++;
 		}
@@ -99,9 +107,9 @@ int _db_read_test(int total, char *df){
 	for (i=0; i<total; i++){
 		int num=dis(gen);
 		sprintf(n, "num%d", num);
-		
+		string value(10,char('A'+num%26));
 		dat = tdb_fetch(db, n);
-		if (dat == prefix){
+		if (dat == value){
 			success++;
 		}
 	}
@@ -114,7 +122,53 @@ int _db_read_test(int total, char *df){
 	return success;
 }
 
+int kidsscc_db_insert_test(int total,char *df)
+{
+	char mode[]="c";
+	TDB *db = tdb_open(df, mode);
+	if ( !db )
+	{
+		cout<<"open db "<<df<<" failed\n";
+		return 0;
+	}
 
+	int success=0;
+	for(int i=0;i<total;i++)
+	{
+		string key="num_"+to_string(i);
+		string value(1023,char('A'+i%26));
+		int s=tdb_store(db,key.c_str(),value.c_str(),TDB_INSERT);
+		if(s==TDB_SUCCESS)
+			success++;
+	}
+	tdb_close(db);
+	cout<<"db insert data test success: "<<success<<" failed: "<<total-success<<endl;
+	return success;
+}
+
+int kidsscc_db_read_test(int total, char*df)
+{
+	char mode[]="r";
+	TDB *db = tdb_open(df, mode);
+	if ( !db )
+	{
+		cout<<"open db "<<df<<" failed\n";
+		return 0;
+	}
+	int success=0;
+	for(int i=0;i<total;i++)
+	{
+		string key="num_"+to_string(i);
+		string res_value(1023,char('A'+i%26));
+
+		string get_value=tdb_fetch(db,key.c_str());
+		if(get_value==res_value)
+			success++;
+	}
+	tdb_close(db);
+	cout<<"db fetch data test success: "<<success<<" failed: "<<total-success<<endl;
+	return success;
+}
 
 
 /**
@@ -176,11 +230,17 @@ int main(){
 		facebook::cachelib_examples::initializeCache();
 	#endif
 	printf("============= performance test ===========\n");
-	
+	/*
 	char df[] = "tdb_data_test";
-	int total = 1000000;
+	int total = 10;
 	_db_insert_test(total, df);
 	_db_read_test(total, df);
+	*/
+
+	char df[]="kidsscc_data_test";
+	int total=100;
+	kidsscc_db_insert_test(total, df);
+	kidsscc_db_read_test(total, df);
 	
 	#ifdef CACHELIB_LOCAL
 		facebook::cachelib_examples::destroyCache();

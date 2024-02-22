@@ -9,6 +9,7 @@
 
 
 #include<thread>
+#include<sys/time.h>
 using namespace std;
 //#define CACHELIB_LOCAL
 
@@ -132,6 +133,10 @@ int kidsscc_db_insert_test(int total,char *df)
 		return 0;
 	}
 
+	clock_t start, finish;   
+	double duration;   
+	start=clock();
+
 	int success=0;
 	for(int i=0;i<total;i++)
 	{
@@ -142,7 +147,11 @@ int kidsscc_db_insert_test(int total,char *df)
 			success++;
 	}
 	tdb_close(db);
-	cout<<"db insert data test success: "<<success<<" failed: "<<total-success<<endl;
+
+	finish=clock();   
+	duration=(double)(finish-start)/CLOCKS_PER_SEC;  
+
+	cout<<"db insert data test success: "<<success<<" failed: "<<total-success<<" use time:"<<duration<<endl;
 	return success;
 }
 
@@ -156,17 +165,30 @@ int kidsscc_db_read_test(int total, char*df)
 		return 0;
 	}
 	int success=0;
+	random_device rd;
+	mt19937 gen(rd());
+	uniform_int_distribution<int> dis(0,total-1);
+
+	clock_t start, finish;   
+	double duration;   
+	start=clock();
+
 	for(int i=0;i<total;i++)
 	{
-		string key="num_"+to_string(i);
-		string res_value(1023,char('A'+i%26));
+		int num=dis(gen);
+		string key="num_"+to_string(num);
+		string res_value(1023,char('A'+num%26));
 
 		string get_value=tdb_fetch(db,key.c_str());
 		if(get_value==res_value)
 			success++;
 	}
 	tdb_close(db);
-	cout<<"db fetch data test success: "<<success<<" failed: "<<total-success<<endl;
+
+	finish=clock();   
+	duration=(double)(finish-start)/CLOCKS_PER_SEC;  
+
+	cout<<"db fetch data test success: "<<success<<" failed: "<<total-success<<" use time:"<<duration<<endl;
 	return success;
 }
 
@@ -238,7 +260,7 @@ int main(){
 	*/
 
 	char df[]="kidsscc_data_test";
-	int total=100;
+	int total=1024*1024;
 	kidsscc_db_insert_test(total, df);
 	kidsscc_db_read_test(total, df);
 	

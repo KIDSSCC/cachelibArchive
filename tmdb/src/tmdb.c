@@ -1107,7 +1107,15 @@ void tdb_close(TDB *db) {
 char *tdb_fetch(TDB *db, const char *key){
 	#ifdef KID_CACHELIB
 		char* res = db->client->getKV(key);
-		return strlen(res)==0?_db_fetch(db, key):res;
+		if(strlen(res)==0)
+		{
+			char* disk_res=_db_fetch(db, key);
+			db->client->setKV_util(key, disk_res);
+			return disk_res;
+		}
+		else
+			return res;
+		//return strlen(res)==0?_db_fetch(db, key):res;
 	#endif
 
 	#ifdef KID_CACHELIB_LOCAL

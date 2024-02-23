@@ -70,54 +70,9 @@ int CachelibClient::addpool(string poolName)
 
 bool CachelibClient::setKV(string key,string value)
 {
-    thread t(&CachelibClient::setKV_util,this,key,value);
-    t.detach();
-    return true;
-}
-
-char* CachelibClient::getKV(string key)
-{
     //锁资源
-    sem_wait(this->semaphore_Server);
-    //准备要存入共享内存的数据
-    shm_stru* message=static_cast<shm_stru*>(this->shared_memory);
-    message->ctrl=1;
-    memset(message->key,0,sizeof(message->key));
-    memset(message->value,0,sizeof(message->value));
-
-    strcpy(message->key,(this->prefix+key).c_str());
-    sem_post(this->semaphore);
-
-    //等待回传
-    sem_wait(this->semaphore_GetBack);
-    string value=message->value;
-
-    //释放资源
-    sem_post(this->semaphore_Server);
-    if(value!="")
-        this->getHit++;
-    return message->value;
-}
-
-bool CachelibClient::delKV(string key)
-{
-    //锁资源
-    sem_wait(this->semaphore_Server);
-    //准备要存入共享内存的数据
-    shm_stru* message=static_cast<shm_stru*>(this->shared_memory);
-    message->ctrl=2;
-    memset(message->key,0,sizeof(message->key));
-    memset(message->value,0,sizeof(message->value));
-    strcpy(message->key,(this->prefix+key).c_str());
-    //释放资源
-    sem_post(this->semaphore);
-    return true;
-}
-
-void CachelibClient::setKV_util(string key,string value)
-{
-    //锁资源
-    sem_wait(this->semaphore_Server);
+    while(sem_trywait(this->semaphore_Server)!=0);
+    //sem_wait(this->semaphore_Server);
     //准备要存入共享内存的数据
     shm_stru* message=static_cast<shm_stru*>(this->shared_memory);
     message->ctrl=0;
@@ -131,4 +86,54 @@ void CachelibClient::setKV_util(string key,string value)
 
     //释放资源
     sem_post(this->semaphore);
+    return true;
+}
+
+char* CachelibClient::getKV(string key)
+{
+    //锁资源
+    while(sem_wait(this->semaphore_Server)!=0);
+    //sem_wait(this->semaphore_Server);
+    //准备要存入共享内存的数据
+    shm_stru* message=static_cast<shm_stru*>(this->shared_memory);
+    message->ctrl=1;
+    memset(message->key,0,sizeof(message->key));
+    memset(message->value,0,sizeof(message->value));
+
+    strcpy(message->key,(this->prefix+key).c_str());
+    sem_post(this->semaphore);
+
+    /*char* a = (char*)malloc(strlen("Hello, world") + 1);
+    strcpy(a, "Hello, world");
+    sem_post(this->semaphore_Server);
+    return a;*/
+
+
+
+    //等待回传
+    while(sem_trywait(this->semaphore_GetBack)!=0);
+    //sem_wait(this->semaphore_GetBack);
+    string value=message->value;
+
+    //释放资源
+    sem_post(this->semaphore_Server);
+    if(value!="")
+        this->getHit++;
+    return message->value;
+}
+
+bool CachelibClient::delKV(string key)
+{
+    //锁资源
+    while(sem_trywait(this->semaphore_Server)!=0);
+    //sem_wait(this->semaphore_Server);
+    //准备要存入共享内存的数据
+    shm_stru* message=static_cast<shm_stru*>(this->shared_memory);
+    message->ctrl=2;
+    memset(message->key,0,sizeof(message->key));
+    memset(message->value,0,sizeof(message->value));
+    strcpy(message->key,(this->prefix+key).c_str());
+    //释放资源
+    sem_post(this->semaphore);
+    return true;
 }

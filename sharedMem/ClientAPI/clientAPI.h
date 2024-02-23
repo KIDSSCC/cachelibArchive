@@ -51,7 +51,6 @@ public:
 
     //util
     int getPid(){return this->pid;};
-    void setKV_util(string key,string value);
     int getHit;
 };
 #endif

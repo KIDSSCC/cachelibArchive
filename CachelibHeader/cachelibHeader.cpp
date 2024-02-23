@@ -6,7 +6,7 @@ namespace cachelib_examples {
 
 std::unique_ptr<Cache> gCache_;
 size_t cacheSize = (size_t)4 * 1024 * 1024 * 1024;
-size_t poolSize = (size_t)2* 1024 * 1024 * 1024;
+size_t poolSize = (size_t)2*1024 * 1024 * 1024;
 
 
 

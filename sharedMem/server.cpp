@@ -31,23 +31,7 @@ using namespace facebook::cachelib_examples;
 int msgid;
 vector<thread*> thread_pool;
 
-void initSem(const char* sem_name,sem_t** semaphore, int initValue)
-{
-    *semaphore = sem_open(sem_name, 0);
-    if (*semaphore != SEM_FAILED) {
-        // 信号量已经存在，关闭它
-        sem_close(*semaphore);
 
-        // 删除信号量
-        sem_unlink(sem_name);
-    }
-    *semaphore = sem_open(sem_name, O_CREAT, 0666, initValue);
-    if (*semaphore == SEM_FAILED) {
-        perror(sem_name);
-        exit(EXIT_FAILURE);
-    }
-    return;
-}
 void sharedMemCtl(char* appName)
 {
     int SHARED_MEMORY_SIZE = sizeof(shm_stru);
@@ -82,7 +66,8 @@ void sharedMemCtl(char* appName)
     while(true)
     {
         //锁资源
-        sem_wait(semaphore);
+        while(sem_trywait(semaphore)!=0);
+        //sem_wait(semaphore);
         shm_stru *getMessage = static_cast<shm_stru*>(shared_memory);
         switch(getMessage->ctrl)
         {

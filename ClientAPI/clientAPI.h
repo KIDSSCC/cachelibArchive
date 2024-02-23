@@ -28,7 +28,7 @@ public:
     CachelibClient();
     int addpool(string poolName);
     bool setKV(string key,string value);
-    string getKV(string key);
+    char* getKV(string key);
     bool delKV(string key);
 
     void setKV_async(string key,string value);

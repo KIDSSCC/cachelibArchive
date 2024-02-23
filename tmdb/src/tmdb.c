@@ -1110,7 +1110,7 @@ char *tdb_fetch(TDB *db, const char *key){
 		if(strlen(res)==0)
 		{
 			char* disk_res=_db_fetch(db, key);
-			db->client->setKV_util(key, disk_res);
+			db->client->setKV(key, disk_res);
 			return disk_res;
 		}
 		else
@@ -1136,7 +1136,7 @@ char *tdb_fetch(TDB *db, const char *key){
 STATUS tdb_store(TDB *db, const char *key, const char *value, int mode) {
 	
 	#ifdef KID_CACHELIB
-		db->client->setKV_util(key, value);
+		db->client->setKV(key, value);
 	#endif
 
 	#ifdef KID_CACHELIB_LOCAL

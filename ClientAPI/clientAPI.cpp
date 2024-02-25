@@ -83,7 +83,7 @@ bool CachelibClient::setKV(string key,string value)
     return true;
 }
 
-string CachelibClient::getKV(string key)
+char* CachelibClient::getKV(string key)
 {
     memset(get_snd->key,0,sizeof(get_snd->key));
     memset(get_snd->value,0,sizeof(get_snd->value));

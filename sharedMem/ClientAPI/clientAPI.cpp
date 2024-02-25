@@ -13,12 +13,44 @@ CachelibClient::CachelibClient()
     }
     this->getHit=0;
 }
+/*
+CachelibClient::CachelibClient()
+{
+    cout<<"------shared memory------\n";
+    char tmpaddr[]="tmp_add_pool_shm";
+    int SHARED_MEMORY_SIZE = sizeof(app_name);
+    int addpool_shm_fd;
+    //打开共享内存
+    do{
+        addpool_shm_fd = shm_open(tmpaddr, O_RDWR, 0666);
+    } while (addpool_shm_fd == -1);
+    // 将共享内存映射到进程的地址空间
+    
+    this->addpool_shared_memory = mmap(NULL, SHARED_MEMORY_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, addpool_shm_fd, 0);
+    if (this->addpool_shared_memory == MAP_FAILED) 
+    {
+        perror("Error mapping shared memory");
+        exit(EXIT_FAILURE);
+    }
+    //打开信号量
+    string sema_client_name=string(tmpaddr)+"_client";
+    string sema_write_right_name=string(tmpaddr)+"_write";
+    string sema_add_pool_back_name=string(tmpaddr)+"_back";
+    do{
+        this->sema_client = sem_open(sema_client_name.c_str(), 0);
+    } while (this->sema_client==SEM_FAILED);
+    do{
+        this->sema_write_right=sem_open(sema_write_right_name.c_str(),0);
+    }while (this->sema_write_right==SEM_FAILED);
+    do{
+        this->sema_add_pool_back=sem_open(sema_add_pool_back_name.c_str(),0);
+    }while (this->sema_add_pool_back==SEM_FAILED);
+}*/
 
 void CachelibClient::prepare_shm(string appName)
 {
     int SHARED_MEMORY_SIZE = sizeof(shm_stru);
-    string sem_server=string(appName)+"_Server";
-    string sem_getback=string(appName)+"_getback";
+    
     //打开共享内存
     do
     {
@@ -32,16 +64,15 @@ void CachelibClient::prepare_shm(string appName)
         exit(EXIT_FAILURE);
     }
     //打开信号量
-    do
-    {
+    string sem_server=string(appName)+"_Server";
+    string sem_getback=string(appName)+"_getback";
+    do{
         this->semaphore = sem_open(appName.c_str(), 0);
     } while (this->semaphore==SEM_FAILED);
-    do
-    {
+    do{
         this->semaphore_Server = sem_open(sem_server.c_str(), 0);
     } while (this->semaphore_Server==SEM_FAILED);
-    do
-    {
+    do{
         this->semaphore_GetBack = sem_open(sem_getback.c_str(), 0);
     } while (this->semaphore_GetBack==SEM_FAILED);
 }
@@ -56,32 +87,61 @@ int CachelibClient::addpool(string poolName)
         perror("msgsnd");
         exit(EXIT_FAILURE);
     }
-    if(msgrcv(this->msgid,&snd,sizeof(m_addpool_c)-sizeof(long),ADDPOOL_S,0)==-1)
-    {
-        perror("msgrcv");
-        exit(EXIT_FAILURE);
-    }
+    
+    //非阻塞轮询的方式等待回传
+    while(msgrcv(this->msgid,&snd,sizeof(m_addpool_c)-sizeof(long),ADDPOOL_S,IPC_NOWAIT)==-1);
     this->pid=snd.pid;
     this->prefix = to_string(pid) + "_";
-
     prepare_shm(poolName);
     return pid;
 }
-
-bool CachelibClient::setKV(string key,string value)
+/*
+int CachelibClient::addpool(string poolName)
 {
-    thread t(&CachelibClient::setKV_util,this,key,value);
-    t.detach();
-    return true;
+    //锁资源
+    while(sem_trywait(this->sema_write_right)!=0);
+    app_name* message=static_cast<app_name*>(this->addpool_shared_memory);
+    strcpy(message->name,poolName.c_str());
+    //通知服务端处理
+    sem_post(this->sema_client);
+    //等待回传
+    while(sem_trywait(this->sema_add_pool_back)!=0);
+    this->pid=message->pid;
+    this->prefix = to_string(this->pid) + "_";
+    cout<<"get pid is: "<<this->pid<<endl;
+    //释放资源
+    sem_post(this->sema_write_right);
+    //准备其他的信号量
+    prepare_shm(poolName);
+    return this->pid;
+}*/
+
+void CachelibClient::setKV(string key,string value)
+{
+    //锁资源
+    while(sem_trywait(this->semaphore_Server)!=0);
+    //准备要存入共享内存的数据
+    shm_stru* message=static_cast<shm_stru*>(this->shared_memory);
+    message->ctrl=SIG_SET;
+    message->pid=this->pid;
+
+    memset(message->key,0,sizeof(message->key));
+    memset(message->value,0,sizeof(message->value));
+    strcpy(message->key,(this->prefix+key).c_str());
+    strcpy(message->value,value.c_str());
+
+    //释放资源
+    sem_post(this->semaphore);
+    return ;
 }
 
 char* CachelibClient::getKV(string key)
 {
     //锁资源
-    sem_wait(this->semaphore_Server);
+    while(sem_wait(this->semaphore_Server)!=0);
     //准备要存入共享内存的数据
     shm_stru* message=static_cast<shm_stru*>(this->shared_memory);
-    message->ctrl=1;
+    message->ctrl=SIG_GET;
     memset(message->key,0,sizeof(message->key));
     memset(message->value,0,sizeof(message->value));
 
@@ -89,20 +149,21 @@ char* CachelibClient::getKV(string key)
     sem_post(this->semaphore);
 
     //等待回传
-    sem_wait(this->semaphore_GetBack);
+    while(sem_trywait(this->semaphore_GetBack)!=0);
     string value=message->value;
 
     //释放资源
     sem_post(this->semaphore_Server);
     if(value!="")
         this->getHit++;
-    return message->value;
+    return const_cast<char*>(value.c_str());
 }
 
 bool CachelibClient::delKV(string key)
 {
     //锁资源
-    sem_wait(this->semaphore_Server);
+    while(sem_trywait(this->semaphore_Server)!=0);
+    //sem_wait(this->semaphore_Server);
     //准备要存入共享内存的数据
     shm_stru* message=static_cast<shm_stru*>(this->shared_memory);
     message->ctrl=2;
@@ -112,23 +173,4 @@ bool CachelibClient::delKV(string key)
     //释放资源
     sem_post(this->semaphore);
     return true;
-}
-
-void CachelibClient::setKV_util(string key,string value)
-{
-    //锁资源
-    sem_wait(this->semaphore_Server);
-    //准备要存入共享内存的数据
-    shm_stru* message=static_cast<shm_stru*>(this->shared_memory);
-    message->ctrl=0;
-    message->pid=this->pid;
-
-    memset(message->key,0,sizeof(message->key));
-    memset(message->value,0,sizeof(message->value));
-
-    strcpy(message->key,(this->prefix+key).c_str());
-    strcpy(message->value,value.c_str());
-
-    //释放资源
-    sem_post(this->semaphore);
 }

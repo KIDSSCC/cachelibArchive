@@ -13,6 +13,11 @@
 using namespace std;
 //#define CACHELIB_LOCAL
 
+
+double timeval_to_seconds(const timeval& t) {
+    return t.tv_sec + t.tv_usec / 1000000.0;
+}
+
 //-----------------------------
 //
 //    test functions
@@ -132,10 +137,9 @@ int kidsscc_db_insert_test(int total,char *df)
 		cout<<"open db "<<df<<" failed\n";
 		return 0;
 	}
-
-	clock_t start, finish;   
-	double duration;   
-	start=clock();
+	cout<<"begin to set\n";
+	timeval start, end;
+    gettimeofday(&start, NULL);
 
 	int success=0;
 	for(int i=0;i<total;i++)
@@ -146,12 +150,13 @@ int kidsscc_db_insert_test(int total,char *df)
 		if(s==TDB_SUCCESS)
 			success++;
 	}
+	gettimeofday(&end, NULL);
+	double start_seconds = timeval_to_seconds(start);
+    double end_seconds = timeval_to_seconds(end);
+    double elapsed_seconds = end_seconds - start_seconds;
+	
 	tdb_close(db);
-
-	finish=clock();   
-	duration=(double)(finish-start)/CLOCKS_PER_SEC;  
-
-	cout<<"db insert data test success: "<<success<<" failed: "<<total-success<<" use time:"<<duration<<endl;
+	cout<<"db insert data test success: "<<success<<" failed: "<<total-success<<" use time:"<<elapsed_seconds<<endl;
 	return success;
 }
 
@@ -169,88 +174,61 @@ int kidsscc_db_read_test(int total, char*df)
 	mt19937 gen(rd());
 	uniform_int_distribution<int> dis(0,total-1);
 
-	clock_t start, finish;   
-	double duration;   
-	start=clock();
+	timeval start, end;
+    gettimeofday(&start, NULL);
 
-	for(int i=0;i<total;i++)
+	for(int i=0;i<2*total;i++)
 	{
 		int num=dis(gen);
 		string key="num_"+to_string(num);
 		string res_value(1023,char('A'+num%26));
+		string get_value=tdb_fetch(db,key.c_str());
+		if(get_value==res_value)
+			success++;
+	}
+
+	/*//正序遍历
+	for(int i=0;i<total;i++)
+	{
+		string key="num_"+to_string(i);
+		string res_value(1023,char('A'+i%26));
 
 		string get_value=tdb_fetch(db,key.c_str());
 		if(get_value==res_value)
 			success++;
 	}
+	cout<<"second time\n";
+	//逆序遍历
+	for(int i=total-1;i>=0;i--)
+	{
+		string key="num_"+to_string(i);
+		string res_value(1023,char('A'+i%26));
+		string get_value=tdb_fetch(db,key.c_str());
+		if(get_value==res_value)
+			success++;
+	}*/
+
+	gettimeofday(&end, NULL);
+	double start_seconds = timeval_to_seconds(start);
+    double end_seconds = timeval_to_seconds(end);
+    double elapsed_seconds = end_seconds - start_seconds;
+
 	tdb_close(db);
-
-	finish=clock();   
-	duration=(double)(finish-start)/CLOCKS_PER_SEC;  
-
-	cout<<"db fetch data test success: "<<success<<" failed: "<<total-success<<" use time:"<<duration<<endl;
+	cout<<"db fetch data test success: "<<success<<" failed: "<<2*total-success<<" use time:"<<elapsed_seconds<<endl;
 	return success;
 }
 
 
-/**
- * test main call
- *
- */
 int main(){
 
-	/**
-	 * function test
-	 */
-
-	/* 
-	int s;
-
-	TDB *db = _db_open("./test/abc", "c");
-	p_tdb(db, "1");
-
-	s = _db_store(db, "aaa", "aaa_test", TDB_INSERT);
-	printf("_db_store: aaa : aaa_test : %d\n", s);
-
-	s = _db_store(db, "aaa", "aaaaaaaaaa", TDB_REPLACE);
-	printf("_db_store: aaa : aaaaaaaaaa : %d\n", s);
-
-	s = _db_store(db, "bbb", "bbbbbbbbbb", TDB_STORE);
-	printf("_db_store: bbb : bbbbbbbbbb : %d\n", s);
-
-	s = _db_delete(db, "bbb");
-	printf("_db_delete: bbb : %d\n", s);
-
-	s = _db_store(db, "ccc", "cccccccccc", TDB_STORE);
-	printf("_db_store: ccc : cccccccccc : %d\n", s);
-
-	s = _db_store(db, "ddd", "ddddddddd", TDB_STORE);
-	printf("_db_store: %s : %s : %d\n", "ddd", "ddddddddd", s);
-
-	char *dat = _db_fetch(db, "aaa");
-	printf("_db_fetch: %s : %s (exists)\n", "aaa", dat);
-
-	char *dat1 = _db_fetch(db, "ccc");
-	printf("_db_fetch: %s : %s (exists)\n", "ccc", dat1);
-
-	char *dat2 = _db_fetch(db, "bbb");
-	printf("_db_fetch: %s : %s (deleted)\n", "bbb", dat2);
-
-	//each all item
-	_db_rewind(db);
-	char *ndat, *nkey = (char *)calloc(64, 1);
-	while ((ndat = _db_nextrec(db, nkey)) != NULL){
-		printf("Each item key:%s, val:%s\n", nkey, ndat);
-		bzero(nkey, strlen(nkey));
-		bzero(ndat, strlen(ndat));
-	}
-	*/
-
-
+	
 	//insert&read test
 	#ifdef CACHELIB_LOCAL
 		facebook::cachelib_examples::initializeCache();
 	#endif
+
+	
+	
 	printf("============= performance test ===========\n");
 	/*
 	char df[] = "tdb_data_test";

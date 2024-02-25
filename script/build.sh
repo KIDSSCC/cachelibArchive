@@ -20,8 +20,8 @@ LD_LIBRARY_PATH="$PREFIX/lib:$PREFIX/lib64:${LD_LIBRARY_PATH:-}"
 export LD_LIBRARY_PATH
 
 rm -rf Build
-# rm -rf *.tdb
-# rm -rf *.tdi
+rm -rf *.tdb
+rm -rf *.tdi
 mkdir -p Build
 cd Build
 cmake $CMAKE_PARAMS ..

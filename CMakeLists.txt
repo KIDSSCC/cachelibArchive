@@ -18,7 +18,7 @@ include_directories("${CH_dir}")
 # 编译SharedMemory_ClientAPI库
 set(CA_dir "${CMAKE_CURRENT_SOURCE_DIR}/sharedMem/ClientAPI")
 add_library(ClientAPI "${CA_dir}/clientAPI.h" "${CA_dir}/clientAPI.cpp")
-target_include_directories(ClientAPI PUBLIC MessageInstruct)
+target_include_directories(ClientAPI PUBLIC sharedMem)
 include_directories("${CA_dir}")
 
 
@@ -28,7 +28,7 @@ include_directories("${CA_dir}")
 # 生成SharedMemory_Server端
 add_executable(Server "${CMAKE_CURRENT_SOURCE_DIR}/sharedMem/server.cpp")
 target_link_libraries(Server cachelibHeader)
-target_include_directories(Server PUBLIC MessageInstruct)
+target_include_directories(Server PUBLIC sharedMem)
 
 
 # 调用tmdb编译子模块

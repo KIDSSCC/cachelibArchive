@@ -3,14 +3,14 @@
 #include <vector>
 #include <time.h>
 
-#include "ClientAPI.h"
+#include "clientAPI.h"
 
 using namespace std;
 
 void remoteTest(string appName)
 {
-    CachelibClient_shm* client=new CachelibClient_shm();
-    int cases=10000;
+    CachelibClient* client=new CachelibClient();
+    int cases=10;
     cout<<"-------- Test for registerPool --------\n";
     client->addpool(appName);
     cout<<"pid is: "<<client->getPid()<<endl;
@@ -30,8 +30,8 @@ void remoteTest(string appName)
     int count = 0;
     for(int i=0;i<cases;i++)
     {
-        if(client->setKV(keys[i], values[i]))
-            count++;
+        client->setKV(keys[i], values[i]);
+        count++;
     }
     finish_s=clock();   
 	duration_s=(double)(finish_s-start_s)/CLOCKS_PER_SEC; 
@@ -51,7 +51,7 @@ void remoteTest(string appName)
 	duration_g=(double)(finish_g-start_g)/CLOCKS_PER_SEC; 
     cout<<"get test result: success "<<count<<" ,failed "<<cases-count<<" time is: "<<duration_g<<std::endl;
 
-    cout<<"-------- Test for del --------\n";
+    /*cout<<"-------- Test for del --------\n";
     clock_t start_d, finish_d;   
 	double duration_d;   
 	start_d=clock();
@@ -68,9 +68,8 @@ void remoteTest(string appName)
             count++;
     }
     cout<<"del test result: success "<<count<<" ,failed "<<cases-count<<" time is: "<<duration_d<<std::endl;
-
-    int pause;
-    cin>>pause;
+    */
+    
 }
 
 int main()

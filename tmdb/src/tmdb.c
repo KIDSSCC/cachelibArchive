@@ -22,11 +22,9 @@
 /*
 	宏定义KIDSSCC声明按照C++进行类型转换
 	宏定义KID_CACHELIB远程连接cachelib
-	宏定义KID_CACHELIB_LOCAL本地连接cachelib
 */
 #define KIDSSCC
 #define KID_CACHELIB
-//#define KID_CACHELIB_LOCAL
 
 #ifdef KIDSSCC
 	#define err_dump(message) err_dump(const_cast<char*>(message))
@@ -1079,12 +1077,6 @@ TDB *tdb_open(const char *path, char *mode) {
 		ret->client=std::make_unique<CachelibClient>();
 		ret->client->addpool(path);
 	#endif
-
-	#ifdef KID_CACHELIB_LOCAL
-		using namespace facebook::cachelib_examples;
-		pid = addpool(path);
-	#endif
-
 	return ret;
 	
 }
@@ -1117,34 +1109,18 @@ char *tdb_fetch(TDB *db, const char *key){
 			return res;
 		//return strlen(res)==0?_db_fetch(db, key):res;
 	#endif
-
-	#ifdef KID_CACHELIB_LOCAL
-		using namespace facebook::cachelib_examples;
-		std::string res = get(key);
-		return res==""?_db_fetch(db, key):res.data();
-	#endif
-
 	return _db_fetch(db, key);
 }
-
-
 
 
 /**
  * Store data
  */
 STATUS tdb_store(TDB *db, const char *key, const char *value, int mode) {
-	
 	#ifdef KID_CACHELIB
 		db->client->setKV(key, value);
 	#endif
-
-	#ifdef KID_CACHELIB_LOCAL
-		using namespace facebook::cachelib_examples;
-		set(pid, key, value);
-	#endif
 	return _db_store(db, key, value, mode);
-	
 }
 
 
@@ -1155,12 +1131,6 @@ STATUS  tdb_delete(TDB *db, const char *key) {
 	#ifdef KID_CACHELIB
 		db->client->delKV(key);
 	#endif
-
-	#ifdef KID_CACHELIB_LOCAL
-		using namespace facebook::cachelib_examples;
-		del(key);
-	#endif
-
 	return _db_delete(db, key);
 }
 

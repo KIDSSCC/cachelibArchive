@@ -1,29 +1,10 @@
 #include <iostream>
-#include <cstdlib>
-#include <cstring>
-#include <unistd.h>
-#include <sys/mman.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <semaphore.h>
-#include <sys/msg.h>
-#include <sys/types.h>
-#include <sys/ipc.h>
 #include <thread>
 #include <vector>
 
 #include "cachelibHeader.h"
-#include "messageInfo.h"
+#include "shm_util.h"
 
-#define SHM_KEY_SIZE 512
-#define SHM_VALUE_SIZE 1024
-struct shm_stru
-{
-    int ctrl;
-    int pid;
-    char key[SHM_KEY_SIZE];
-    char value[SHM_VALUE_SIZE];
-};
 
 using namespace std;
 using namespace facebook::cachelib_examples;
@@ -35,8 +16,6 @@ vector<thread*> thread_pool;
 void sharedMemCtl(char* appName)
 {
     int SHARED_MEMORY_SIZE = sizeof(shm_stru);
-    string sem_server=string(appName)+"_Server";
-    string sem_getback=string(appName)+"_getback";
     //创建共享内存
     int shm_fd = shm_open(appName, O_CREAT | O_RDWR, 0666);
     if (shm_fd == -1) 
@@ -58,9 +37,13 @@ void sharedMemCtl(char* appName)
         exit(EXIT_FAILURE);
     }
     //创建信号量
-    
+    string sem_server=string(appName)+"_Server";
+    string sem_getback=string(appName)+"_getback";
+    //指示当前是否需要服务端处理共享内存区
     sem_t* semaphore=sem_open(appName, O_CREAT, 0666,0);
+    //指示当前共享内存区是否空闲，客户端能够开始新的操作
     sem_t* semaphore_Server=sem_open(sem_server.c_str(), O_CREAT, 0666,1);
+    //对于get操作的回传信号
     sem_t* semaphore_GetBack=sem_open(sem_getback.c_str(), O_CREAT, 0666,0);
     string getValue;
     while(true)
@@ -95,6 +78,7 @@ void sharedMemCtl(char* appName)
     }
     
 }
+
 void listen_addpool()
 {
     while(1)
@@ -109,6 +93,7 @@ void listen_addpool()
         thread t(sharedMemCtl,rcv.name);
         t.detach();
         rcv.mtype = ADDPOOL_S;
+        //pid回传
         if(msgsnd(msgid, &rcv, sizeof(m_addpool_c)-sizeof(long), 0) == -1) 
         {
             perror("msgsnd");
@@ -116,8 +101,53 @@ void listen_addpool()
         }
         
     }
-    cout<<"can't access here\n";
 }
+/*
+void listen_addpool()
+{
+    char tmpaddr[]="tmp_add_pool_shm";
+    int SHARED_MEMORY_SIZE = sizeof(app_name);
+    //创建共享内存
+    int shm_fd = shm_open(tmpaddr, O_CREAT | O_RDWR, 0666);
+    if (shm_fd == -1) 
+    {
+        perror("Error creating shared memory");
+        exit(EXIT_FAILURE);
+    }
+    //调整共享内存区大小
+    if (ftruncate(shm_fd, SHARED_MEMORY_SIZE) == -1) 
+    {
+        perror("Error resizing shared memory");
+        exit(EXIT_FAILURE);
+    }
+    // 将共享内存映射到进程的地址空间
+    void* shared_memory = mmap(NULL, SHARED_MEMORY_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
+    if (shared_memory == MAP_FAILED) 
+    {
+        perror("Error mapping shared memory");
+        exit(EXIT_FAILURE);
+    }
+    //创建信号量
+    string sema_client_name=string(tmpaddr)+"_client";
+    string sema_write_right_name=string(tmpaddr)+"_write";
+    string sema_add_pool_back_name=string(tmpaddr)+"_back";
+    sem_t* sema_client=sem_open(sema_client_name.c_str(), O_CREAT, 0666,0);
+    sem_t* sema_write_right=sem_open(sema_write_right_name.c_str(), O_CREAT, 0666,1);
+    sem_t* sema_add_pool_back=sem_open(sema_add_pool_back_name.c_str(),O_CREAT, 0666,0);
+    char* copiedName = (char*)malloc(32); 
+    while(true)
+    {
+        sem_wait(sema_client);
+        app_name *getMessage = static_cast<app_name*>(shared_memory);
+        getMessage->pid=addpool_(getMessage->name);
+        memset(copiedName,0,sizeof(copiedName));
+        strcpy(copiedName,getMessage->name);
+        thread t(sharedMemCtl,copiedName);
+        t.detach();
+        sem_post(sema_add_pool_back);
+    }
+
+}*/
 void MQInit()
 {
     msgid = msgget(MSG_KEY, 0666);
@@ -147,8 +177,7 @@ int main(int argc, char** argv)
     initializeCache();
 
     MQInit();
-    thread t1(listen_addpool);
-    t1.join();
+    listen_addpool();
 
     destroyCache();
 }

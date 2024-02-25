@@ -2,33 +2,12 @@
 #define CLIENT_API_SHM
 
 #include <iostream>
-#include <cstdlib>
-#include <cstring>
-#include <unistd.h>
-#include <sys/mman.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <semaphore.h>
-#include <sys/msg.h>
-#include <sys/types.h>
-#include <sys/ipc.h>
 #include <thread>
 
-#include "messageInfo.h"
+#include "shm_util.h"
 
-
-#define SHM_KEY_SIZE 512
-#define SHM_VALUE_SIZE 1024
 
 using namespace std;
-struct shm_stru
-{
-    int ctrl;
-    int pid;
-    char key[SHM_KEY_SIZE];
-    char value[SHM_VALUE_SIZE];
-};
-
 class CachelibClient
 {
 private:
@@ -41,11 +20,17 @@ private:
     sem_t* semaphore;
     sem_t* semaphore_Server;
     sem_t* semaphore_GetBack;
+
+    //用于创建缓存池操作同步机制的信号量
+    void* addpool_shared_memory;
+    sem_t* sema_client;
+    sem_t* sema_write_right;
+    sem_t* sema_add_pool_back;
 public:
     CachelibClient();
     void prepare_shm(string appName);
     int addpool(string poolName);
-    bool setKV(string key,string value);
+    void setKV(string key,string value);
     char* getKV(string key);
     bool delKV(string key);
 

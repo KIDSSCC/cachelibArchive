@@ -150,13 +150,15 @@ char* CachelibClient::getKV(string key)
 
     //等待回传
     while(sem_trywait(this->semaphore_GetBack)!=0);
-    string value=message->value;
+    memset(this->getValue,0,sizeof(this->getValue));
+    strcpy(this->getValue,message->value);
 
     //释放资源
     sem_post(this->semaphore_Server);
-    if(value!="")
+    if(strlen(this->getValue)!=0)
         this->getHit++;
-    return const_cast<char*>(value.c_str());
+    //cout<<"in clientAPI get value is: "<<this->getValue<<endl;
+    return this->getValue;
 }
 
 bool CachelibClient::delKV(string key)

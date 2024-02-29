@@ -26,6 +26,8 @@ private:
     sem_t* sema_client;
     sem_t* sema_write_right;
     sem_t* sema_add_pool_back;
+    //接收get操作返回结果
+    char getValue[1024];
 public:
     CachelibClient();
     void prepare_shm(string appName);

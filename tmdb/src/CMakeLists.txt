@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.12)
 project(tmdb)
 
 set(CMAKE_C_COMPILER g++)
-set(FILE_PATH /home/md/MQCachelib/tmdb/src)
+set(FILE_PATH /home/md/SHMCachelib/tmdb/src)
 
 
 # 确定源文件

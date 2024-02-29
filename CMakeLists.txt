@@ -5,7 +5,7 @@ project(CachelibServer CXX)
 
 find_package(cachelib CONFIG REQUIRED)
 
-include_directories("/home/md/MQCachelib/")
+include_directories("/home/md/SHMCachelib/")
 
 # 编译cachelibHeader库
 set(CH_dir "${CMAKE_CURRENT_SOURCE_DIR}/CachelibHeader/")

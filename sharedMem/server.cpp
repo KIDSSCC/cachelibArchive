@@ -5,7 +5,7 @@
 #include "cachelibHeader.h"
 #include "shm_util.h"
 
-
+#define MAX_WAIT 10000000
 using namespace std;
 using namespace facebook::cachelib_examples;
 
@@ -48,8 +48,20 @@ void sharedMemCtl(char* appName)
     string getValue;
     while(true)
     {
-        //锁资源
-        while(sem_trywait(semaphore)!=0);
+    	int waitCount=0;
+
+        //try_wait() within a certain number of times or wait()
+	while(sem_trywait(semaphore)!=0)
+	{
+		//can't get semaphore
+		if(waitCount>MAX_WAIT)
+		{
+			sem_wait(semaphore);
+			break;
+		}
+		waitCount++;
+	}
+        //while(sem_trywait(semaphore)!=0);
         //sem_wait(semaphore);
         shm_stru *getMessage = static_cast<shm_stru*>(shared_memory);
         switch(getMessage->ctrl)

@@ -22,6 +22,7 @@ export LD_LIBRARY_PATH
 rm -rf Build
 rm -rf *.tdb
 rm -rf *.tdi
+rm -rf *.res
 mkdir -p Build
 cd Build
 cmake $CMAKE_PARAMS ..

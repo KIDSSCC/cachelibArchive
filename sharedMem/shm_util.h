@@ -54,6 +54,12 @@ struct shm_stru
     char value[SHM_VALUE_SIZE];
 };
 
+class CacheStat{
+public:
+	size_t availableSize;
+
+};
+
 
 
 #endif

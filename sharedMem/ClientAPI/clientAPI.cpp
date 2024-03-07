@@ -91,7 +91,9 @@ int CachelibClient::addpool(string poolName)
     //非阻塞轮询的方式等待回传
     while(msgrcv(this->msgid,&snd,sizeof(m_addpool_c)-sizeof(long),ADDPOOL_S,IPC_NOWAIT)==-1);
     this->pid=snd.pid;
-    this->prefix = to_string(pid) + "_";
+    //this->prefix = to_string(pid) + "_";
+    this->prefix = poolName + "_";
+    
     prepare_shm(poolName);
     return pid;
 }

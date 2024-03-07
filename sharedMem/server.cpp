@@ -1,6 +1,7 @@
 #include <iostream>
 #include <thread>
 #include <vector>
+#include <set>
 
 #include "cachelibHeader.h"
 #include "shm_util.h"
@@ -10,7 +11,15 @@ using namespace std;
 using namespace facebook::cachelib_examples;
 
 int msgid;
-vector<thread*> thread_pool;
+
+void getCacheStats()
+{
+	CacheStat cacheStats;
+	cacheStats.availableSize = getAvailableSize();
+	//set<PoolId> allPool = getPoolIds_();	
+	return ;
+}
+
 
 
 void sharedMemCtl(char* appName)

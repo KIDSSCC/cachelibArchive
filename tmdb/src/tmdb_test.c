@@ -20,6 +20,13 @@ double timeval_to_seconds(const timeval& t) {
     return t.tv_sec + t.tv_usec / 1000000.0;
 }
 
+double getUsedTime(const timeval& st,const timeval& en)
+{
+	double startTime=timeval_to_seconds(st);
+	double endTime=timeval_to_seconds(en);
+	return endTime-startTime;
+}
+
 //-----------------------------
 //
 //    test functions
@@ -272,81 +279,127 @@ void data_prepare(char*df)
 }
 void parallel_test(int argc,char*argv[])
 {
-	char* file_path=nullptr;
-	int rand_seed=-1;
+	char* input_file=nullptr;
+	char* output_file=nullptr;
 	int o;
-	while((o=getopt(argc,argv,"-f:r:"))!=-1)
+	while((o=getopt(argc,argv,"-i:o:"))!=-1)
 	{
 		switch(o)
 		{
-			case 'f':file_path=optarg;break;
-			case 'r':rand_seed=atoi(optarg);break;
+			case 'i':input_file=optarg;break;
+			case 'o':output_file=optarg;break;
 			default:cout<<"wrong argument\n";break;
 		}
 	}
-	if(!file_path||rand_seed<0)
+	if(!input_file||!output_file)
 	{
 		cout<<"can get efficient argument\n";
 		exit(0);
 	}
-	int total=512*1024;
+	string fileLoad_name=string(input_file)+"_load.txt";
+	string fileRun_name=string(input_file)+"_run.txt";
 	char mode[]="c";
-	TDB* db=tdb_open(file_path,mode);
+	TDB* db=tdb_open(output_file,mode);
 	if(!db)
 	{
-		cout<<"Error open: "<<file_path<<endl;
+		cout<<"Error open: "<<output_file<<endl;
 		exit(0);
 	}
+	//open the load file
+	fstream fileLoad(fileLoad_name);
+	if (!fileLoad.is_open()) 
+	{ 	
+		cout << "Error opening fileLoad!" << endl;
+        	exit(0);
+    	}
+
 	//time to set
 	timeval start,end;
 	gettimeofday(&start,NULL);
 
-	int success=0;
-	for(int i=0;i<total;i++)
+	string line;
+	while(getline(fileLoad,line))
 	{
-		string key="num_"+to_string(i);
-		string value(1023,char('A'+(i+rand_seed)%26));
-		int s=tdb_store(db,key.c_str(),value.c_str(),TDB_INSERT);
-		if(s==TDB_SUCCESS)
-			success++;
+		//读取某一行内容
+		if(line[0]=='-')
+			continue;
+		if(line=="insert")
+		{
+			//插入操作
+			getline(fileLoad,line);
+			string key=line.substr(5);
+			getline(fileLoad,line);
+			string value=line.substr(8);
+			tdb_store(db,key.c_str(),value.c_str(),TDB_INSERT);
+			//cout<<"set operation-----key is: "<<key<<" and value is: "<<value<<endl;
+		}
 	}
-
+	
 	gettimeofday(&end,NULL);
-	double start_seconds=timeval_to_seconds(start);
-	double end_seconds=timeval_to_seconds(end);
-	double elapsed_seconds=end_seconds-start_seconds;
-	cout<<"insert success: "<<success<<" failed: "<<total-success<<" used time: "<<elapsed_seconds<<endl;
+	cout<<"Load phase,Used Time: "<<getUsedTime(start,end)<<endl;
 	tdb_close(db);
+	fileLoad.close();
+	
+	cout<<"finish load"<<endl;
 
 	char mode_r[]="w";
-	TDB* db_r=tdb_open(file_path,mode_r);
+	TDB* db_r=tdb_open(output_file,mode_r);
 	if(!db_r)
 	{
-		cout<<"Error open: "<<file_path<<endl;
+		cout<<"Error open: "<<output_file<<endl;
 		exit(0);
 	}
+	fstream fileRun(fileRun_name);
+	if (!fileRun.is_open()) 
+	{ 	
+		cout << "Error opening fileRun!" << endl;
+        	exit(0);
+    	}
 	//time to get
 	gettimeofday(&start,NULL);
-	success=0;
-	random_device rd;
-        mt19937 gen(rd());
-        uniform_int_distribution<int> dis(0,total-1);
-	for(int i=0;i<5*total;i++)
+
+	line="";
+	while(getline(fileRun,line))
 	{
-		int num=dis(gen);
-		string key="num_"+to_string(num);
-		//cout<<"in get test, key is: "<<key<<endl;
-		string res_value(1023,char('A'+(num+rand_seed)%26));
-		string get_value=tdb_fetch(db_r,key.c_str());
-		if(res_value==get_value)
-			success++;
+		//读取某一行内容
+		if(line[0]=='-')
+			continue;
+		else if(line=="insert")
+		{
+			//插入操作
+			getline(fileRun,line);
+			string key=line.substr(5);
+			getline(fileRun,line);
+			string value=line.substr(8);
+			tdb_store(db_r,key.c_str(),value.c_str(),TDB_INSERT);
+			//cout<<"set operation-----key is: "<<key<<" and value is: "<<value<<endl;
+		}
+		else if(line=="read")
+		{
+			//读取操作
+			getline(fileRun,line);
+			string key=line.substr(5);
+			string get_value=tdb_fetch(db_r,key.c_str());
+			//cout<<"get operation-----key is: "<<key<<" and get_value is: "<<get_value<<endl;
+		}
+		else if(line=="update")
+		{
+			//update operation
+			getline(fileRun,line);
+			string key=line.substr(5);
+			getline(fileRun,line);
+			string value=line.substr(8);
+			tdb_store(db_r,key.c_str(),value.c_str(),TDB_INSERT);
+			//cout<<"update operation-----key is: "<<key<<" and value is: "<<value<<endl;
+		}
+
+
 	}
+	cout<<"finish Run"<<endl;
 	gettimeofday(&end,NULL);
-	start_seconds=timeval_to_seconds(start);
-	end_seconds=timeval_to_seconds(end);
-	elapsed_seconds=end_seconds-start_seconds;
-	cout<<"get success: "<<success<<" failed: "<<5*total-success<<" used time: "<<elapsed_seconds<<endl;
+	cout<<"Run phase,Used Time: "<<getUsedTime(start,end)<<endl;
 	tdb_close(db_r);
+	fileRun.close();
 
 }
 	

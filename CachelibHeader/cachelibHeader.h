@@ -10,6 +10,7 @@
 
 
 #include<string>
+#include<set>
 
 namespace facebook {
 namespace cachelib_examples {
@@ -20,6 +21,7 @@ using CacheReadHandle = typename Cache::ReadHandle;
 using CacheWriteHandle = typename Cache::WriteHandle;
 using PoolId = cachelib::PoolId;
 using PoolStats = cachelib::PoolStats;
+using CacheMemoryStats = cachelib::CacheMemoryStats;
 using RemoveRes = Cache::RemoveRes;
 
 using Estimates = cachelib::util::PercentileStats::Estimates;
@@ -53,6 +55,11 @@ std::string get_(CacheKey key);
 
 //数据del操作
 bool del_(CacheKey key);
+
+
+//cachelib stats
+size_t getAvailableSize();
+std::set<PoolId> getPoolIds_();
 
 }
 }

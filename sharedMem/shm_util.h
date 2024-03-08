@@ -1,6 +1,7 @@
 #ifndef SHM_UTIL
 #define SHM_UTIL
 
+#include <iostream>
 #include <cstdlib>
 #include <cstring>
 #include <unistd.h>
@@ -11,6 +12,8 @@
 #include <sys/msg.h>
 #include <sys/types.h>
 #include <sys/ipc.h>
+#include <map>
+#include <string>
 
 
 //对于注册缓存时的操作，先同时保留共享内存和消息队列的实现方式
@@ -57,6 +60,16 @@ struct shm_stru
 class CacheStat{
 public:
 	size_t availableSize;
+	std::map<std::string, size_t> allPoolSize;
+	
+	void printCacheStat(){
+		std::cout<<"availableSize: "<<this->availableSize<<std::endl;
+		std::cout<<"allPoolSize: "<<std::endl;
+		for(const auto& pair:allPoolSize){
+			std::cout<<"[ "<<pair.first<<", "<<pair.second<<" ]"<<std::endl;
+		}
+
+	}
 
 };
 

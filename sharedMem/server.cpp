@@ -16,7 +16,12 @@ void getCacheStats()
 {
 	CacheStat cacheStats;
 	cacheStats.availableSize = getAvailableSize();
-	//set<PoolId> allPool = getPoolIds_();	
+	set<PoolId> allPool = getPoolIds_();
+	for(const auto& pid:allPool){
+		PoolStats currPoolStat = getPoolStat(pid);
+		cacheStats.allPoolSize[currPoolStat.poolName]=currPoolStat.poolSize;
+	}	
+	cacheStats.printCacheStat();
 	return ;
 }
 

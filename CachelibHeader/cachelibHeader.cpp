@@ -85,6 +85,9 @@ size_t getAvailableSize(){
 	CacheMemoryStats currStats = gCache_->getCacheMemoryStats();
 	return currStats.unReservedSize;	
 }
+PoolStats getPoolStat(PoolId pid){
+	return gCache_->getPoolStats(pid);
+}
 
 }
 }

@@ -60,6 +60,7 @@ bool del_(CacheKey key);
 //cachelib stats
 size_t getAvailableSize();
 std::set<PoolId> getPoolIds_();
+PoolStats getPoolStat(PoolId pid);
 
 }
 }

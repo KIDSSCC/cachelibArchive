@@ -1,4 +1,5 @@
 #include <iostream>
+#include <cstring>
 #include <thread>
 #include <vector>
 #include <set>
@@ -83,7 +84,7 @@ void sharedMemCtl(char* appName)
             case 0:
                 //set操作
                 set_(getMessage->pid,getMessage->key,getMessage->value);
-                //cout<<"set operation---key is: "<<getMessage->key<<" and value is: "<<getMessage->value<<endl;
+                cout<<"set operation---key is: "<<getMessage->key<<" and value is: "<<getMessage->value<<" pid is: "<<getMessage->pid<<endl;
                 //释放资源
                 sem_post(semaphore_Server);
                 break;
@@ -91,7 +92,7 @@ void sharedMemCtl(char* appName)
                 //get操作
                 getValue=get_(getMessage->key);
                 strcpy(getMessage->value,getValue.c_str());
-                //cout<<"get operation---key is: "<<getMessage->key<<" and value is: "<<getMessage->value<<endl;
+                cout<<"get operation---key is: "<<getMessage->key<<" and value is: "<<getMessage->value<<endl;
                 sem_post(semaphore_GetBack);
                 break;
             case 2:
@@ -174,6 +175,71 @@ void listen_addpool()
     }
 
 }*/
+void listen_CacheStats(){
+	/*
+	string poolName_1 = "pool1_";
+	string poolName_2 = "pool2_";
+	string poolName_3 = "pool3_";
+	int pid1 = addpool_(poolName_1);
+	int pid2 = addpool_(poolName_2);
+	int pid3 = addpool_(poolName_3);
+	*/
+	
+	int server_socket = socket(AF_INET, SOCK_STREAM, 0);
+	if(server_socket == -1){
+		cout<<"Error creating socket"<<endl;
+		return;
+	}
+	//bind host and port
+	sockaddr_in server_address;
+	server_address.sin_family = AF_INET;
+	server_address.sin_port = htons(1412);
+	server_address.sin_addr.s_addr = INADDR_ANY;
+	if(bind(server_socket, (sockaddr*)&server_address, sizeof(server_address)) == -1){
+		cout<<"Error binding socket"<<endl;
+		close(server_socket);
+		return;
+	}
+	//listen the connection
+	if(listen(server_socket, 5)==-1){
+		cout<<"Error listening on socket"<<endl;
+		close(server_socket);
+		return;
+	}
+	
+	//accept the connection
+	sockaddr_in client_address;
+	socklen_t client_address_size = sizeof(client_address);
+	int client_socket = accept(server_socket, (sockaddr*)&client_address, &client_address_size);
+	if(client_socket == -1){
+		cout<<"Error accepting connection"<<endl;
+		close(server_socket);
+	}
+
+	char buffer[1024];
+	int bytes_received = recv(client_socket, buffer, sizeof(buffer), 0);
+	if(bytes_received == -1){
+		cout<<"Error receiving data"<<endl;
+		close(client_socket);
+		close(server_socket);
+		return;
+	}
+	buffer[bytes_received] = '\0';
+	cout<<"Received: "<<buffer<<endl;
+
+	//send response
+	const char* response_message = "Hello from C++";
+	send(client_socket, response_message, strlen(response_message), 0);
+
+	//close socket
+	close(client_socket);
+	close(server_socket);
+
+	return;
+		
+
+
+}
 void MQInit()
 {
     msgid = msgget(MSG_KEY, 0666);
@@ -203,7 +269,14 @@ int main(int argc, char** argv)
     initializeCache();
 
     MQInit();
-    listen_addpool();
+    
+    thread t_listenAddPool(listen_addpool);
+    //thread t_listenCacheStat(listen_CacheStats);
+
+    
+
+    t_listenAddPool.join();
+    //t_listenCacheStat.join();
 
     destroyCache();
 }

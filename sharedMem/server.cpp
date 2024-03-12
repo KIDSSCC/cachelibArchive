@@ -3,6 +3,8 @@
 #include <thread>
 #include <vector>
 #include <set>
+#include <sys/socket.h>
+#include <netinet/in.h>
 
 #include "cachelibHeader.h"
 #include "shm_util.h"
@@ -108,8 +110,52 @@ void sharedMemCtl(char* appName)
 
 void listen_addpool()
 {
-    while(1)
-    {
+	int server_socket = socket(AF_INET, SOCK_STREAM, 0);
+	if(server_socket == -1){
+		std::cout<<"Error: Failed to create socket\n";
+		return;
+	}
+	//bind address and port
+	sockaddr_in server_address;
+	server_address.sin_family = AF_INET;
+	server_address.sin_addr.s_addr = INADDR_ANY;
+	server_address.sin_port = htons(54000);
+	if (bind(server_socket, (struct sockaddr *)&server_address, sizeof(server_address)) == -1) {
+		std::cout << "Error: Failed to bind\n";
+		return ;
+	}
+	//listen the connection
+	if (listen(server_socket, SOMAXCONN) == -1) {
+		std::cerr << "Error: Failed to listen\n";
+		return ;
+    	}
+	
+    	while(true){
+		int client_socket = accept(server_socket, nullptr,nullptr);
+		if(client_socket == -1){
+			std::cout<<"Failed to accept\n";
+			continue;
+		}
+		char buf[1024];
+		memset(buf, 0 ,sizeof(buf));
+		//read the client message
+		int bytesReceived = recv(client_socket, buf, sizeof(buf), 0);
+		if(bytesReceived == -1){
+			std::cout<<"Error: failed to receive data\n";
+			close(client_socket);
+			continue;
+		}
+		std::cout<<"Received: " << std::string(buf, 0, bytesReceived) << std::endl;
+		/* wait to solve request*/
+		std::string response = "Response to client: " + std::string(buf, 0, bytesReceived);
+		int bytesSent = send(client_socket, response.c_str(), response.size() + 1, 0);
+		if(bytesSent == -1){
+			std::cout<<"Error:failed to send response\n";
+		}
+		close(client_socket);
+	}
+
+	/*
         m_addpool_c rcv;
         if(msgrcv(msgid, &rcv, sizeof(m_addpool_c)-sizeof(long),ADDPOOL_C,0)==-1)
         {
@@ -127,7 +173,7 @@ void listen_addpool()
             exit(EXIT_FAILURE);
         }
         
-    }
+    */
 }
 /*
 void listen_addpool()

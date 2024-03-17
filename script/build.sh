@@ -23,6 +23,8 @@ rm -rf Build
 rm -rf *.tdb
 rm -rf *.tdi
 rm -rf *.res
+rm -rf *.log
+rm -rf /dev/shm/*
 mkdir -p Build
 cd Build
 cmake $CMAKE_PARAMS ..

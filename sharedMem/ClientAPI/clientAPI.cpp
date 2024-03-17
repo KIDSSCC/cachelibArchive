@@ -92,24 +92,30 @@ int CachelibClient::addpool(string poolName)
 		cout<<"Error: Failed to connect to server\n";
         	exit(EXIT_FAILURE);
 	}
-	string message = "Hello, this is from " + poolName;
+	string message = "A:" + poolName;
 	int bytesSent = send(client_socket, message.c_str(), message.size() + 1, 0);
 	if (bytesSent == -1){
 		cout<<"Error: Failed to send message\n";
 		close(client_socket);
 		exit(EXIT_FAILURE);
 	}
-	char buf[1024];
-	memset(buf, 0, sizeof(buf));
-	int bytesReceived = recv(client_socket, buf, sizeof(buf), 0);
+	int recvPid;	
+	int bytesReceived = recv(client_socket, &recvPid, sizeof(recvPid), 0);
 	if (bytesReceived == -1){
 		cout<<"Error: Failed to recv response\n";
 		close(client_socket);
 		exit(EXIT_FAILURE);
 	}
-	cout << "Server response: " << std::string(buf, 0, bytesReceived) << endl;
+	//cout<<"from client, send: "<<message<<" and recvive pid is: "<<recvPid<<endl;
+
+	//cout << "Server response: " << recvPid << endl;
 	close(client_socket);
-	return 0;
+	
+	this->pid = recvPid;
+	//this->prefix = to_string(recvPid) + "_";
+	this->prefix = poolName + "_";
+	prepare_shm(poolName);
+	return pid;
 		
 
 

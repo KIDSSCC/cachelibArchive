@@ -23,6 +23,7 @@ using PoolId = cachelib::PoolId;
 using PoolStats = cachelib::PoolStats;
 using CacheMemoryStats = cachelib::CacheMemoryStats;
 using RemoveRes = Cache::RemoveRes;
+using RebalanceStrategy=cachelib::RebalanceStrategy;
 
 using Estimates = cachelib::util::PercentileStats::Estimates;
 
@@ -61,6 +62,7 @@ bool del_(CacheKey key);
 size_t getAvailableSize();
 std::set<PoolId> getPoolIds_();
 PoolStats getPoolStat(PoolId pid);
+void resizePool(std::string poolName, size_t newSize);
 
 }
 }

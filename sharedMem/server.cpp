@@ -3,8 +3,11 @@
 #include <thread>
 #include <vector>
 #include <set>
+#include <map>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <sstream>
+#include <fstream>
 
 #include "cachelibHeader.h"
 #include "shm_util.h"
@@ -14,23 +17,38 @@ using namespace std;
 using namespace facebook::cachelib_examples;
 
 int msgid;
-
-void getCacheStats()
+map<string, int> poolRecord;
+map<string, uint64_t> getCacheStats()
 {
-	CacheStat cacheStats;
-	cacheStats.availableSize = getAvailableSize();
+	map<string, uint64_t> res;
 	set<PoolId> allPool = getPoolIds_();
 	for(const auto& pid:allPool){
 		PoolStats currPoolStat = getPoolStat(pid);
-		cacheStats.allPoolSize[currPoolStat.poolName]=currPoolStat.poolSize;
+		//cacheStats.allPoolSize[currPoolStat.poolName]=currPoolStat.poolSize;
+		res[currPoolStat.poolName] = currPoolStat.poolSize / ((size_t)64 * 1024 * 1024);
+		//cout<<"Name is: "<<currPoolStat.poolName<<" size is: "<<res[currPoolStat.poolName]<<endl;
 	}	
-	cacheStats.printCacheStat();
-	return ;
+	//cacheStats.printCacheStat();
+	return res;
+}
+
+void executeNewConfig(string config){
+	istringstream iss(config);
+	string line,size;
+	getline(iss, line);
+	getline(iss, size);
+	istringstream line_stream1(line);
+	istringstream line_stream2(size);
+	string token;
+	size_t num;
+	while(line_stream1>>token && line_stream2>>num){
+		resizePool(token, num * (size_t)64 * 1024 * 1024);
+	}
 }
 
 
 
-void sharedMemCtl(char* appName)
+void sharedMemCtl(const char* appName)
 {
     int SHARED_MEMORY_SIZE = sizeof(shm_stru);
     //创建共享内存
@@ -86,7 +104,7 @@ void sharedMemCtl(char* appName)
             case 0:
                 //set操作
                 set_(getMessage->pid,getMessage->key,getMessage->value);
-                cout<<"set operation---key is: "<<getMessage->key<<" and value is: "<<getMessage->value<<" pid is: "<<getMessage->pid<<endl;
+                //cout<<"set operation---key is: "<<getMessage->key<<" and value is: "<<getMessage->value<<" pid is: "<<getMessage->pid<<endl;
                 //释放资源
                 sem_post(semaphore_Server);
                 break;
@@ -94,7 +112,7 @@ void sharedMemCtl(char* appName)
                 //get操作
                 getValue=get_(getMessage->key);
                 strcpy(getMessage->value,getValue.c_str());
-                cout<<"get operation---key is: "<<getMessage->key<<" and value is: "<<getMessage->value<<endl;
+                //cout<<"get operation---key is: "<<getMessage->key<<" and value is: "<<getMessage->value<<endl;
                 sem_post(semaphore_GetBack);
                 break;
             case 2:
@@ -112,7 +130,7 @@ void listen_addpool()
 {
 	int server_socket = socket(AF_INET, SOCK_STREAM, 0);
 	if(server_socket == -1){
-		std::cout<<"Error: Failed to create socket\n";
+		cout<<"Error: Failed to create socket\n";
 		return;
 	}
 	//bind address and port
@@ -120,20 +138,25 @@ void listen_addpool()
 	server_address.sin_family = AF_INET;
 	server_address.sin_addr.s_addr = INADDR_ANY;
 	server_address.sin_port = htons(54000);
+	int yes = 1;
+	if(setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes))==-1){
+		cout << "Error: Failed to set socket\n";
+		return;
+	}
 	if (bind(server_socket, (struct sockaddr *)&server_address, sizeof(server_address)) == -1) {
-		std::cout << "Error: Failed to bind\n";
+		cout << "Error: Failed to bind\n";
 		return ;
 	}
 	//listen the connection
 	if (listen(server_socket, SOMAXCONN) == -1) {
-		std::cerr << "Error: Failed to listen\n";
+		cout << "Error: Failed to listen\n";
 		return ;
     	}
 	
     	while(true){
 		int client_socket = accept(server_socket, nullptr,nullptr);
 		if(client_socket == -1){
-			std::cout<<"Failed to accept\n";
+			cout<<"Failed to accept\n";
 			continue;
 		}
 		char buf[1024];
@@ -141,16 +164,45 @@ void listen_addpool()
 		//read the client message
 		int bytesReceived = recv(client_socket, buf, sizeof(buf), 0);
 		if(bytesReceived == -1){
-			std::cout<<"Error: failed to receive data\n";
+			cout<<"Error: failed to receive data\n";
 			close(client_socket);
 			continue;
 		}
-		std::cout<<"Received: " << std::string(buf, 0, bytesReceived) << std::endl;
 		/* wait to solve request*/
-		std::string response = "Response to client: " + std::string(buf, 0, bytesReceived);
-		int bytesSent = send(client_socket, response.c_str(), response.size() + 1, 0);
-		if(bytesSent == -1){
-			std::cout<<"Error:failed to send response\n";
+		if(buf[0]=='A'){
+			//registre pool
+			string poolName = string(buf, 2, bytesReceived-2);
+			//cout<<"from server, Received: " << poolName << endl;
+			int pid = addpool_(poolName);
+			//cout<<"poolName is: "<<poolName<<" pid is: "<<pid<<endl;
+			if(poolRecord[poolName]==0){
+				poolRecord[poolName]=1;
+				thread t(sharedMemCtl, poolName.c_str());
+				t.detach();
+			}
+			int bytesSent = send(client_socket, &pid, sizeof(pid), 0);
+			if(bytesSent == -1){
+				cout<<"Error:failed to send response\n";
+			}
+		}else if(buf[0]=='G'){
+			//cout<<"get a request to get pool Stats\n";
+			//get Status
+			map<string, uint64_t> poolStats = getCacheStats();
+			ostringstream oss;
+			for(const auto& pair:poolStats){
+				oss<<pair.first<<":"<<pair.second<<";";
+			}
+			string serialized_map = oss.str();
+			int bytesSent = send(client_socket, serialized_map.c_str(),serialized_map.size(), 0);
+			if(bytesSent == -1){
+				cout<<"Error:Failed to send response\n";
+			}
+		}else if(buf[0]=='S'){
+			//set Status
+			string getMessage = string(buf, 2, bytesReceived-2);
+			//cout<<"getMessage: "<<getMessage<<endl;
+			executeNewConfig(getMessage);
+
 		}
 		close(client_socket);
 	}

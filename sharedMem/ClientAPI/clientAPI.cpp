@@ -79,6 +79,47 @@ void CachelibClient::prepare_shm(string appName)
 
 int CachelibClient::addpool(string poolName)
 {
+	int client_socket = socket(AF_INET, SOCK_STREAM, 0);
+	if(client_socket == -1){
+		cout<<"Error: Failed to create socket\n";
+        	exit(EXIT_FAILURE);
+	}
+	sockaddr_in server_address;
+	server_address.sin_family = AF_INET;
+	server_address.sin_port = htons(54000);
+	inet_pton(AF_INET, "127.0.0.1", &server_address.sin_addr);
+	if (connect(client_socket, (struct sockaddr *)&server_address, sizeof(server_address)) == -1){
+		cout<<"Error: Failed to connect to server\n";
+        	exit(EXIT_FAILURE);
+	}
+	string message = "A:" + poolName;
+	int bytesSent = send(client_socket, message.c_str(), message.size() + 1, 0);
+	if (bytesSent == -1){
+		cout<<"Error: Failed to send message\n";
+		close(client_socket);
+		exit(EXIT_FAILURE);
+	}
+	int recvPid;	
+	int bytesReceived = recv(client_socket, &recvPid, sizeof(recvPid), 0);
+	if (bytesReceived == -1){
+		cout<<"Error: Failed to recv response\n";
+		close(client_socket);
+		exit(EXIT_FAILURE);
+	}
+	//cout<<"from client, send: "<<message<<" and recvive pid is: "<<recvPid<<endl;
+
+	//cout << "Server response: " << recvPid << endl;
+	close(client_socket);
+	
+	this->pid = recvPid;
+	//this->prefix = to_string(recvPid) + "_";
+	this->prefix = poolName + "_";
+	prepare_shm(poolName);
+	return pid;
+		
+
+
+	/*
     m_addpool_c snd;
     snd.mtype=ADDPOOL_C;
     strcpy(snd.name,poolName.c_str());
@@ -96,6 +137,7 @@ int CachelibClient::addpool(string poolName)
     
     prepare_shm(poolName);
     return pid;
+    */
 }
 /*
 int CachelibClient::addpool(string poolName)

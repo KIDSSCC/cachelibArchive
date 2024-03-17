@@ -12,6 +12,9 @@
 #include<thread>
 #include<sys/time.h>
 #include<unistd.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 using namespace std;
 //#define CACHELIB_LOCAL
 
@@ -277,7 +280,218 @@ void data_prepare(char*df)
 	fileLoad.close();
 	tdb_close(db);
 }
+/*
+ * void just_load()
+ * need complete file name
+ * execute load phase
+ * */
+void just_load(string fileName,char* diskFile){
+	char mode[] = "c";
+	TDB* db=tdb_open(diskFile,mode);
+	if(!db){
+		cout<<"Error open: "<<diskFile<<endl;
+		exit(0);
+	}
+	fstream fileLoad(fileName);
+	if (!fileLoad.is_open()) { 	
+		cout << "Error opening fileLoad!" << endl;
+        	exit(0);
+    	}
+	string line;
+	while(getline(fileLoad,line)){
+		//read a line from workload file
+		if(line[0]=='-')
+			continue;
+		else if(line=="insert")
+		{
+			//insert operation
+			getline(fileLoad,line);
+			string key=line.substr(5);
+			getline(fileLoad,line);
+			string value=line.substr(8);
+			tdb_store(db,key.c_str(),value.c_str(),TDB_INSERT);
+			//cout<<"set operation-----key is: "<<key<<" and value is: "<<value<<endl;
+		}
+	}
+	tdb_close(db);
+	fileLoad.close();
+	cout<<"finish load phase\n";
+
+}
+/*
+ * void just_run
+ * need complete file name
+ * execute run phase and print log per 1000operations
+ * */
+void just_run(string fileName, char* diskFile){
+	char mode[] = "w";
+	TDB* db=tdb_open(diskFile,mode);
+	if(!db){
+		cout<<"Error open: "<<diskFile<<endl;
+		exit(0);
+	}
+	fstream fileLoad(fileName);
+	string logFileName = string(diskFile)+"_performance.log";
+	string lockFileName = string(diskFile)+".lock";
+	timeval logStart,logEnd;
+	//time part
+	timeval t_start,t_end;
+	gettimeofday(&t_start,NULL);
+	string line;
+	int operCount = 0;
+	gettimeofday(&logStart, NULL);
+	while(getline(fileLoad,line)){
+		//read a line from workload file
+		if(line[0]=='-')
+			continue;
+		else if(line=="insert"||line=="update")
+		{
+			//insert operation or update operation
+			getline(fileLoad,line);
+			string key=line.substr(5);
+			getline(fileLoad,line);
+			string value=line.substr(8);
+			tdb_store(db,key.c_str(),value.c_str(),TDB_INSERT);
+			//cout<<line<<" operation-----key is: "<<key<<" and value is: "<<value<<endl;
+			operCount++;
+		}
+		else if(line=="read")
+		{
+			//read operation
+			getline(fileLoad,line);
+			string key=line.substr(5);
+			string get_value=tdb_fetch(db,key.c_str());
+			//cout<<"get operation-----key is: "<<key<<" and get_value is: "<<get_value<<endl;
+			operCount++;
+		}
+		if(operCount>1000){
+			//print log
+			gettimeofday(&logEnd, NULL);
+			ofstream lockFile(lockFileName);
+			lockFile.close();
+
+			ofstream logFile(logFileName, ios::app);
+			if(logFile.is_open()){
+				double usedTime = getUsedTime(logStart, logEnd);
+				string log = "Used Time: " + to_string(usedTime);
+				logFile<<log<<endl;
+				logFile.close();
+			}
+			remove(lockFileName.c_str());
+			
+			operCount = 0;
+			gettimeofday(&logStart, NULL);
+		}
+	}
+	
+	gettimeofday(&t_end,NULL);
+	cout<<"Run phase, Used Time: "<<getUsedTime(t_start,t_end)<<endl;
+	tdb_close(db);
+	fileLoad.close();
+}
 void parallel_test(int argc,char*argv[])
+{
+	char* input_file=nullptr;
+	char* output_file=nullptr;
+	int operationType = -1;
+	int o;
+	bool printLog = false;
+	while((o=getopt(argc,argv,"-i:o:lr"))!=-1)
+	{
+		switch(o)
+		{
+			case 'i':input_file=optarg;break;
+			case 'o':output_file=optarg;break;
+			case 'l':operationType = 1;break;
+			case 'r':
+				 operationType = 2;
+				 printLog = true;
+				 break;
+			default:cout<<"wrong argument\n";break;
+		}
+	}
+	if(!input_file||!output_file)
+	{
+		cout<<"can get efficient argument\n";
+		exit(0);
+	}
+	char mode[] = "c";
+	if(operationType == 1){
+		//load operation
+		mode[0] = 'w';
+	}
+	TDB* db=tdb_open(output_file,mode);
+	if(!db)
+	{
+		cout<<"Error open: "<<output_file<<endl;
+		exit(0);
+	}
+	//open the target file
+	string inputFileName = input_file;
+	fstream fileLoad(inputFileName);
+	if (!fileLoad.is_open()) 
+	{ 	
+		cout << "Error opening fileLoad!" << endl;
+        	exit(0);
+    	}
+
+	//time to set
+	timeval start,end;
+	gettimeofday(&start,NULL);
+
+	string line;
+	while(getline(fileLoad,line)){
+		//read a line from workload file
+		if(line[0]=='-')
+			continue;
+		else if(line=="insert")
+		{
+			//insert operation
+			getline(fileLoad,line);
+			string key=line.substr(5);
+			getline(fileLoad,line);
+			string value=line.substr(8);
+			tdb_store(db,key.c_str(),value.c_str(),TDB_INSERT);
+			//cout<<"set operation-----key is: "<<key<<" and value is: "<<value<<endl;
+		}
+		else if(line=="read")
+		{
+			//read operation
+			getline(fileLoad,line);
+			string key=line.substr(5);
+			string get_value=tdb_fetch(db,key.c_str());
+			//cout<<"get operation-----key is: "<<key<<" and get_value is: "<<get_value<<endl;
+		}
+		else if(line=="update")
+		{
+			//update operation
+			getline(fileLoad,line);
+			string key=line.substr(5);
+			getline(fileLoad,line);
+			string value=line.substr(8);
+			tdb_store(db,key.c_str(),value.c_str(),TDB_INSERT);
+			//cout<<"update operation-----key is: "<<key<<" and value is: "<<value<<endl;
+		}
+
+
+	}
+	
+	gettimeofday(&end,NULL);
+	if(operationType == 1){
+		cout<<"Load phase,Used Time: "<<getUsedTime(start,end)<<endl;
+	}else{
+		cout<<"Run phase, Used Time: "<<getUsedTime(start,end)<<endl;
+	}
+	tdb_close(db);
+	fileLoad.close();
+}
+
+/*
+ * void loadAndRun()
+ * accept uncomplete file name
+ * execute both load and run phase
+ * */	
+void loadAndRun(int argc,char*argv[])
 {
 	char* input_file=nullptr;
 	char* output_file=nullptr;
@@ -402,83 +616,39 @@ void parallel_test(int argc,char*argv[])
 	fileRun.close();
 
 }
-	
-
-
-
-
-
-
-
-void data_run(char*df)
-{
-	char mode[]="w";
-	TDB *db = tdb_open(df, mode);
-	if ( !db )
-	{
-		cout<<"open db "<<df<<" failed\n";
-		exit(0);
-	}
-	//打开执行文件
-	fstream fileRun("/home/md/testFile_1/cleanRun.txt");
-	if (!fileRun.is_open()) 
-	{ 	// 检查文件是否成功打开
-        cout << "Error opening fileLoad!" << std::endl;
-        exit(0);
-    }
-
-	timeval start, end;
-    gettimeofday(&start, NULL);
-
-	string line;
-	while(getline(fileRun,line))
-	{
-		//读取某一行内容
-		if(line[0]=='-')
-			continue;
-		else if(line=="insert")
-		{
-			//插入操作
-			getline(fileRun,line);
-			string key=line.substr(5);
-			getline(fileRun,line);
-			string value=line.substr(8);
-			tdb_store(db,key.c_str(),value.c_str(),TDB_INSERT);
-			//cout<<"set operation-----key is: "<<key<<" and value is: "<<value<<endl;
-		}
-		else if(line=="read")
-		{
-			//读取操作
-			getline(fileRun,line);
-			string key=line.substr(5);
-			string get_value=tdb_fetch(db,key.c_str());
-			//cout<<"get operation-----key is: "<<key<<" and get_value is: "<<get_value<<endl;
-		}
-	}
-
-	gettimeofday(&end, NULL);
-	double start_seconds = timeval_to_seconds(start);
-    double end_seconds = timeval_to_seconds(end);
-    double elapsed_seconds = end_seconds - start_seconds;
-
-	cout<<"run test,used time: "<<elapsed_seconds<<endl;
-	fileRun.close();
-	tdb_close(db);
-}
-
 
 int main(int argc,char*argv[]){
-
-	
 	//insert&read test
 	#ifdef CACHELIB_LOCAL
 		facebook::cachelib_examples::initializeCache();
 	#endif
-
-	
-	
-	printf("============= performance test ===========\n");
-	parallel_test(argc,argv);
+	char* input_file=nullptr;
+	char* output_file=nullptr;
+	int operationType = -1;
+	int o;
+	while((o=getopt(argc,argv,"-i:o:lr"))!=-1)
+	{
+		switch(o)
+		{
+			case 'i':input_file=optarg;break;
+			case 'o':output_file=optarg;break;
+			case 'l':operationType = 1;break;
+			case 'r':operationType = 2;break;
+			default:cout<<"wrong argument\n";break;
+		}
+	}
+	if(!input_file||!output_file||operationType<0)
+	{
+		cout<<"can get efficient argument\n";
+		exit(0);
+	}
+	string fileName = input_file;
+	if(operationType == 1){
+		just_load(fileName, output_file);
+	}else{
+		just_run(fileName, output_file);
+	}
+	//parallel_test(argc,argv);
 	/*
 	char df[] = "tdb_data_test";
 	int total = 10;
@@ -486,14 +656,6 @@ int main(int argc,char*argv[]){
 	_db_read_test(total, df);
 	*/
 
-	/*char df[]="kidsscc_data_test";
-	int total=1024*1024;
-	kidsscc_db_insert_test(total, df);
-	kidsscc_db_read_test(total, df);*/
-
-	/*char df[]="ycsb_data";
-	data_prepare(df);
-	data_run(df);*/
 	#ifdef CACHELIB_LOCAL
 		facebook::cachelib_examples::destroyCache();
 	#endif

@@ -6,8 +6,8 @@ namespace cachelib_examples {
 
 std::unique_ptr<Cache> gCache_;
 PoolId defaultPool_;
-size_t cacheSize = (size_t)4 * 1024 * 1024 * 1024 + (size_t)4 * 1024 * 1024;
-size_t poolSize = (size_t)1 * 256 * 1024 * 1024;
+size_t cacheSize = (size_t)4 * 1024* 1024 * 1024 + (size_t)4 * 1024 * 1024;
+size_t poolSize = (size_t)2 * 1024 * 1024 * 1024;
 
 size_t defaultPoolSize = (size_t)1 * 1024 * 1024 * 1024;
 
@@ -18,6 +18,9 @@ void cacheConfigure(CacheConfig& config)
     config.setCacheSize(cacheSize);  //2GB cache
     config.setCacheName("Cachelib Cache");
     config.setAccessConfig({25, 10});   //bucket power = 25,lock power = 10
+
+    const uint32_t poolResizeSlabsPerIter = 100000;
+    config.enablePoolResizing(std::make_shared<RebalanceStrategy>(),std::chrono::milliseconds{1}, poolResizeSlabsPerIter);
     config.validate();   
 }
 
@@ -43,7 +46,10 @@ int addpool_(std::string poolName)
     cachelib::PoolId poolId = gCache_->getPoolId(poolName);
     if(poolId==-1){
         poolId = gCache_->addPool(poolName, poolSize);
-    	poolSize = poolSize+(size_t)512 * 1024 * 1024;
+    	//poolSize = poolSize+(size_t)512 * 1024 * 1024;
+	//std::cout<<"pool nonexist,name is: "<<poolName<<" and pid is: "<<(int)poolId<<std::endl;
+    }else{
+	//std::cout<<"pool exist,name is: "<<poolName<<" and pid is: "<<(int)poolId<<std::endl;
     }
     return poolId;
 }
@@ -87,6 +93,20 @@ size_t getAvailableSize(){
 }
 PoolStats getPoolStat(PoolId pid){
 	return gCache_->getPoolStats(pid);
+}
+
+void resizePool(std::string poolName, size_t newSize){
+	PoolId pid = gCache_->getPoolId(poolName);
+	PoolStats poolStat = gCache_->getPoolStats(pid);
+	size_t currSize = poolStat.poolSize;
+	std::cout<<"change "<<poolName<<" from "<<currSize<<" to "<<newSize<<std::endl;
+	if(newSize>currSize){
+		//growPool
+		gCache_->growPool(pid, newSize-currSize);
+	}else if(newSize<currSize){
+		//shrinkPool
+		gCache_->shrinkPool(pid, currSize-newSize);
+	}
 }
 
 }

@@ -62,6 +62,7 @@ bool del_(CacheKey key);
 size_t getAvailableSize();
 std::set<PoolId> getPoolIds_();
 PoolStats getPoolStat(PoolId pid);
+size_t getPoolSizeFromName(std::string poolName);
 void resizePool(std::string poolName, size_t newSize);
 
 }

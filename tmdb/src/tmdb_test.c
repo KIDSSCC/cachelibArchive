@@ -18,6 +18,8 @@
 using namespace std;
 //#define CACHELIB_LOCAL
 
+#define PRINT_LATENCY
+
 
 double timeval_to_seconds(const timeval& t) {
     return t.tv_sec + t.tv_usec / 1000000.0;
@@ -297,6 +299,10 @@ void just_load(string fileName,char* diskFile){
 		cout << "Error opening fileLoad!" << endl;
         	exit(0);
     	}
+#ifdef PRINT_LATENCY
+	timeval t_start, t_end;
+	gettimeofday(&t_start, NULL);
+#endif
 	string line;
 	while(getline(fileLoad,line)){
 		//read a line from workload file
@@ -313,6 +319,10 @@ void just_load(string fileName,char* diskFile){
 			//cout<<"set operation-----key is: "<<key<<" and value is: "<<value<<endl;
 		}
 	}
+#ifdef PRINT_LATENCY
+	gettimeofday(&t_end,NULL);
+	cout<<"Load phase, Used Time: "<<getUsedTime(t_start, t_end)<<endl;
+#endif
 	tdb_close(db);
 	fileLoad.close();
 	cout<<"finish load phase\n";
@@ -364,7 +374,8 @@ void just_run(string fileName, char* diskFile){
 			//cout<<"get operation-----key is: "<<key<<" and get_value is: "<<get_value<<endl;
 			operCount++;
 		}
-		if(operCount>1000){
+#ifdef PRINT_LATENCY
+		if(operCount>100000){
 			//print log
 			gettimeofday(&logEnd, NULL);
 			ofstream lockFile(lockFileName);
@@ -382,6 +393,7 @@ void just_run(string fileName, char* diskFile){
 			operCount = 0;
 			gettimeofday(&logStart, NULL);
 		}
+#endif
 	}
 	
 	gettimeofday(&t_end,NULL);
@@ -389,6 +401,21 @@ void just_run(string fileName, char* diskFile){
 	tdb_close(db);
 	fileLoad.close();
 }
+/*
+ * just_addPool()
+ * need diskFile name,which is also poolName
+ * just addpool through tdb_open,and wait to resize pool
+ * */
+void just_addPool(char* diskFile){
+	char mode[] = "c";
+	TDB* db=tdb_open(diskFile,mode);
+	if(!db){
+		cout<<"Error open: "<<diskFile<<endl;
+		exit(0);
+	}
+	tdb_close(db);
+}
+	
 void parallel_test(int argc,char*argv[])
 {
 	char* input_file=nullptr;
@@ -626,7 +653,7 @@ int main(int argc,char*argv[]){
 	char* output_file=nullptr;
 	int operationType = -1;
 	int o;
-	while((o=getopt(argc,argv,"-i:o:lr"))!=-1)
+	while((o=getopt(argc,argv,"-i:o:lra"))!=-1)
 	{
 		switch(o)
 		{
@@ -634,6 +661,7 @@ int main(int argc,char*argv[]){
 			case 'o':output_file=optarg;break;
 			case 'l':operationType = 1;break;
 			case 'r':operationType = 2;break;
+			case 'a':operationType = 3;break;
 			default:cout<<"wrong argument\n";break;
 		}
 	}
@@ -645,8 +673,10 @@ int main(int argc,char*argv[]){
 	string fileName = input_file;
 	if(operationType == 1){
 		just_load(fileName, output_file);
-	}else{
+	}else if(operationType == 2){
 		just_run(fileName, output_file);
+	}else{
+		just_addPool(output_file);
 	}
 	//parallel_test(argc,argv);
 	/*

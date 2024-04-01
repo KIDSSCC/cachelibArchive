@@ -13,6 +13,7 @@
 #include "shm_util.h"
 
 #define MAX_WAIT 10000000
+#define SIZE_CONV ((size_t)4 * 1024 * 1024)
 using namespace std;
 using namespace facebook::cachelib_examples;
 
@@ -25,7 +26,7 @@ map<string, uint64_t> getCacheStats()
 	for(const auto& pid:allPool){
 		PoolStats currPoolStat = getPoolStat(pid);
 		//cacheStats.allPoolSize[currPoolStat.poolName]=currPoolStat.poolSize;
-		res[currPoolStat.poolName] = currPoolStat.poolSize / ((size_t)64 * 1024 * 1024);
+		res[currPoolStat.poolName] = currPoolStat.poolSize / SIZE_CONV;
 		//cout<<"Name is: "<<currPoolStat.poolName<<" size is: "<<res[currPoolStat.poolName]<<endl;
 	}	
 	//cacheStats.printCacheStat();
@@ -41,8 +42,26 @@ void executeNewConfig(string config){
 	istringstream line_stream2(size);
 	string token;
 	size_t num;
+
+	vector<string> poolNames;
+	vector<size_t> poolSizes;
 	while(line_stream1>>token && line_stream2>>num){
-		resizePool(token, num * (size_t)64 * 1024 * 1024);
+		poolNames.push_back(token);
+		poolSizes.push_back(num);
+	}
+	// first,shrinkle pool
+	for(int i=0;i<poolNames.size();i++){
+		size_t currSize = getPoolSizeFromName(poolNames[i])/SIZE_CONV;
+		if(currSize>poolSizes[i]){
+			resizePool(poolNames[i], poolSizes[i] * SIZE_CONV);
+		}
+	}
+	// second, grow pool
+	for(int i=0;i<poolNames.size();i++){
+		size_t currSize = getPoolSizeFromName(poolNames[i])/SIZE_CONV;
+		if(currSize<poolSizes[i]){
+			resizePool(poolNames[i], poolSizes[i] * SIZE_CONV);
+		}
 	}
 }
 

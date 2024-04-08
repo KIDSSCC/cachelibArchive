@@ -1088,6 +1088,7 @@ TDB *tdb_open(const char *path, char *mode) {
 void tdb_close(TDB *db) {
 	#ifdef KID_CACHELIB
 		cout<<"getHit is: "<<db->client->getHit<<endl;
+		db->client.reset();
 	#endif
 	_db_free(db);
 }

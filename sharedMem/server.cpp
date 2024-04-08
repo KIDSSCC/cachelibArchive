@@ -1,13 +1,19 @@
 #include <iostream>
 #include <cstring>
 #include <thread>
+#include <string>
 #include <vector>
 #include <set>
 #include <map>
+#include <utility>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <sstream>
 #include <fstream>
+//for timeval
+#include <sys/time.h>
+//for atomic_flag
+#include <atomic>
 
 #include "cachelibHeader.h"
 #include "shm_util.h"
@@ -18,7 +24,19 @@ using namespace std;
 using namespace facebook::cachelib_examples;
 
 int msgid;
-map<string, int> poolRecord;
+atomic_flag slockForRecord = ATOMIC_FLAG_INIT;
+map<string, pair<int, int>> poolRecord;
+map<string, CacheHitStatistics*> name2CHS;
+
+double timeval_to_seconds(const timeval& t) {
+    return t.tv_sec + t.tv_usec / 1000000.0;
+}
+double getUsedTime(const timeval& st,const timeval& en)
+{
+	double startTime=timeval_to_seconds(st);
+	double endTime=timeval_to_seconds(en);
+	return endTime-startTime;
+}
 map<string, uint64_t> getCacheStats()
 {
 	map<string, uint64_t> res;
@@ -67,11 +85,13 @@ void executeNewConfig(string config){
 
 
 
-void sharedMemCtl(const char* appName)
+void sharedMemCtl(const char* appName, int no, CacheHitStatistics* chs)
 {
     int SHARED_MEMORY_SIZE = sizeof(shm_stru);
+    string localAppName = appName;
+    cout<<"register SHM: "<<localAppName<<endl;
     //创建共享内存
-    int shm_fd = shm_open(appName, O_CREAT | O_RDWR, 0666);
+    int shm_fd = shm_open(localAppName.c_str(), O_CREAT | O_RDWR, 0666);
     if (shm_fd == -1) 
     {
         perror("Error creating shared memory");
@@ -91,15 +111,17 @@ void sharedMemCtl(const char* appName)
         exit(EXIT_FAILURE);
     }
     //创建信号量
-    string sem_server=string(appName)+"_Server";
-    string sem_getback=string(appName)+"_getback";
+    string sem_server=localAppName + "_Server";
+    string sem_getback=localAppName + "_getback";
     //指示当前是否需要服务端处理共享内存区
-    sem_t* semaphore=sem_open(appName, O_CREAT, 0666,0);
+    sem_t* semaphore=sem_open(localAppName.c_str(), O_CREAT, 0666,0);
     //指示当前共享内存区是否空闲，客户端能够开始新的操作
     sem_t* semaphore_Server=sem_open(sem_server.c_str(), O_CREAT, 0666,1);
     //对于get操作的回传信号
     sem_t* semaphore_GetBack=sem_open(sem_getback.c_str(), O_CREAT, 0666,0);
     string getValue;
+
+
     while(true)
     {
     	int waitCount=0;
@@ -120,27 +142,68 @@ void sharedMemCtl(const char* appName)
         shm_stru *getMessage = static_cast<shm_stru*>(shared_memory);
         switch(getMessage->ctrl)
         {
-            case 0:
+            case SIG_SET:
                 //set操作
                 set_(getMessage->pid,getMessage->key,getMessage->value);
                 //cout<<"set operation---key is: "<<getMessage->key<<" and value is: "<<getMessage->value<<" pid is: "<<getMessage->pid<<endl;
                 //释放资源
                 sem_post(semaphore_Server);
                 break;
-            case 1:
+            case SIG_GET:
                 //get操作
                 getValue=get_(getMessage->key);
+		/*
+		while(chs->spinlockForRate.test(memory_order_acquire));
+		chs->totalGet[no]++;
+		if(getValue != ""){
+			chs->hitGet[no]++;
+		}
+		*/
                 strcpy(getMessage->value,getValue.c_str());
                 //cout<<"get operation---key is: "<<getMessage->key<<" and value is: "<<getMessage->value<<endl;
                 sem_post(semaphore_GetBack);
                 break;
-            case 2:
+            case SIG_DEL:
                 //del操作
                 del_(getMessage->key);
                 sem_post(semaphore_Server);
+	    case SIG_CLOSE:
+		sem_post(semaphore_Server);
+		cout<<"close SHM: "<<localAppName<<endl;
+		while(slockForRecord.test_and_set(memory_order_acquire));
+		poolRecord[chs->poolName].first--;
+		slockForRecord.clear(memory_order_release);
+
             default:
                 break;
         }
+	/*
+	if(chs->spinlock.test_and_set(memory_order_acquire)){
+		gettimeofday(&(chs->endTime), NULL);
+		if(getUsedTime(chs->startTime, chs->endTime)>5){
+			while(chs->spinlockForRate.test_and_set(memory_order_acquire));
+			double t_totalGet = 0;
+			double t_totalHit = 0;
+			for(int i = 0; i<chs->totalGet.size(); i++){
+				t_totalGet += chs->totalGet[i];
+				chs->totalGet[i] = 0;
+				t_totalHit += chs->hitGet[i];
+				chs->hitGet[i] = 0;
+			}
+			chs->spinlockForRate.clear(memory_order_release);
+			ofstream logFile(chs->logFileName, ios::app);
+			if(logFile.is_open()){
+				string logInfo = "Cache Hit Rate: " + to_string(t_totalHit/t_totalGet);
+				logFile<<logInfo<<endl;
+				logFile.close();
+			}
+			gettimeofday(&(chs->startTime), NULL);
+		}
+		chs->spinlock.clear(memory_order_release);
+		
+	}
+	*/
+	
     }
     
 }
@@ -191,18 +254,49 @@ void listen_addpool()
 		if(buf[0]=='A'){
 			//registre pool
 			string poolName = string(buf, 2, bytesReceived-2);
-			//cout<<"from server, Received: " << poolName << endl;
 			int pid = addpool_(poolName);
-			//cout<<"poolName is: "<<poolName<<" pid is: "<<pid<<endl;
+			//for multithread
+			int newShmId;
+			auto it = poolRecord.find(poolName);
+			if(it == poolRecord.end()||it->second.first==0){
+				//new cache pool
+				while(slockForRecord.test_and_set(memory_order_acquire));
+				poolRecord[poolName] = make_pair(1, 0);
+				newShmId = (poolRecord[poolName].second)++;
+				slockForRecord.clear(memory_order_release);
+
+				name2CHS[poolName] = new CacheHitStatistics(poolName);
+				name2CHS[poolName]->adjustSize(newShmId);
+				
+			}else{
+				while(slockForRecord.test_and_set(memory_order_acquire));
+				(poolRecord[poolName].first)++;
+				newShmId = ++(poolRecord[poolName].second);
+				slockForRecord.clear(memory_order_release);
+
+				name2CHS[poolName]->adjustSize(newShmId);
+				
+			}
+			string shmId = poolName + "_" + to_string(newShmId);
+			thread t(sharedMemCtl, shmId.c_str(), newShmId, name2CHS[poolName]);
+			t.detach();
+
+			string sendInfo = to_string(pid) + " " + shmId;
+			int bytesSent = send(client_socket, sendInfo.c_str(), sendInfo.size(), 0);
+			if(bytesSent == -1){
+				cout<<"Error:failed to send response\n";
+			}
+
+			
+			/*
 			if(poolRecord[poolName]==0){
 				poolRecord[poolName]=1;
 				thread t(sharedMemCtl, poolName.c_str());
 				t.detach();
 			}
 			int bytesSent = send(client_socket, &pid, sizeof(pid), 0);
-			if(bytesSent == -1){
-				cout<<"Error:failed to send response\n";
-			}
+			*/
+			
 		}else if(buf[0]=='G'){
 			//cout<<"get a request to get pool Stats\n";
 			//get Status

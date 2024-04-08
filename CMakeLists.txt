@@ -1,5 +1,7 @@
 # 原始客户端与服务端的编译
 cmake_minimum_required(VERSION 3.12)
+set(CMAKE_CXX_STANDARD 20)
+message("C++ standard: ${CMAKE_CXX_STANDARD}")
 
 project(CachelibServer CXX)
 

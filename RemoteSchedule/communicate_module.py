@@ -45,11 +45,12 @@ if __name__ == '__main__':
             old_config[0]: ['uniform', 'zipfian']    # name of pool and the turn of pool size and latency
             old_config[1]: [16, 16]                  # current pool size,64MB per unit, for example, 16 means current pool size is 1G
             old_config[2]: [0.0321, 0.0234]          # latency of each workload
+            old_config[3]: [0.8254, 0.7563]          # cache hit rate of each workload
         '''
         
         new_config = []
         new_config.append(old_config[0])
-        new_partition = [old_config[1][0]-2, old_config[1][1]+2]
+        new_partition = [old_config[1][0]-2, old_config[1][1]+2, old_config[1][2]]
         new_config.append(new_partition)
 
         '''

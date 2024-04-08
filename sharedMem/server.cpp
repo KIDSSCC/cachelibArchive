@@ -18,7 +18,7 @@
 #include "cachelibHeader.h"
 #include "shm_util.h"
 
-#define MAX_WAIT 10000000
+#define MAX_WAIT 100000000
 #define SIZE_CONV ((size_t)4 * 1024 * 1024)
 using namespace std;
 using namespace facebook::cachelib_examples;
@@ -122,7 +122,8 @@ void sharedMemCtl(const char* appName, int no, CacheHitStatistics* chs)
     string getValue;
 
 
-    while(true)
+    bool available = true;
+    while(available)
     {
     	int waitCount=0;
 
@@ -132,6 +133,7 @@ void sharedMemCtl(const char* appName, int no, CacheHitStatistics* chs)
 		//can't get semaphore
 		if(waitCount>MAX_WAIT)
 		{
+			cout<<"begin sleep\n";
 			sem_wait(semaphore);
 			break;
 		}
@@ -152,13 +154,11 @@ void sharedMemCtl(const char* appName, int no, CacheHitStatistics* chs)
             case SIG_GET:
                 //get操作
                 getValue=get_(getMessage->key);
-		/*
 		while(chs->spinlockForRate.test(memory_order_acquire));
 		chs->totalGet[no]++;
 		if(getValue != ""){
 			chs->hitGet[no]++;
 		}
-		*/
                 strcpy(getMessage->value,getValue.c_str());
                 //cout<<"get operation---key is: "<<getMessage->key<<" and value is: "<<getMessage->value<<endl;
                 sem_post(semaphore_GetBack);
@@ -169,18 +169,21 @@ void sharedMemCtl(const char* appName, int no, CacheHitStatistics* chs)
                 sem_post(semaphore_Server);
 	    case SIG_CLOSE:
 		sem_post(semaphore_Server);
-		cout<<"close SHM: "<<localAppName<<endl;
 		while(slockForRecord.test_and_set(memory_order_acquire));
 		poolRecord[chs->poolName].first--;
 		slockForRecord.clear(memory_order_release);
 
+		available = false;
+		break;
+
             default:
                 break;
         }
-	/*
-	if(chs->spinlock.test_and_set(memory_order_acquire)){
+	//if(!chs->spinlock.test_and_set(memory_order_acquire)){
+	if(no == 0){
 		gettimeofday(&(chs->endTime), NULL);
-		if(getUsedTime(chs->startTime, chs->endTime)>5){
+		if(getUsedTime(chs->startTime, chs->endTime)>2){
+			//cout<<"name is: "<<localAppName<<" and time is: "<<getUsedTime(chs->startTime, chs->endTime)<<endl;
 			while(chs->spinlockForRate.test_and_set(memory_order_acquire));
 			double t_totalGet = 0;
 			double t_totalHit = 0;
@@ -193,6 +196,7 @@ void sharedMemCtl(const char* appName, int no, CacheHitStatistics* chs)
 			chs->spinlockForRate.clear(memory_order_release);
 			ofstream logFile(chs->logFileName, ios::app);
 			if(logFile.is_open()){
+				//string logInfo = "totalGet is: " + to_string(t_totalGet) + " totalHit is: " + to_string(t_totalHit) +  " Cache Hit Rate: " + to_string(t_totalHit/t_totalGet);
 				string logInfo = "Cache Hit Rate: " + to_string(t_totalHit/t_totalGet);
 				logFile<<logInfo<<endl;
 				logFile.close();
@@ -202,10 +206,18 @@ void sharedMemCtl(const char* appName, int no, CacheHitStatistics* chs)
 		chs->spinlock.clear(memory_order_release);
 		
 	}
-	*/
 	
     }
-    
+	munmap(shared_memory, SHARED_MEMORY_SIZE);
+	shm_unlink(localAppName.c_str());
+	sem_close(semaphore);
+	sem_close(semaphore_Server);
+	sem_close(semaphore_GetBack);
+	sem_unlink(localAppName.c_str());
+	sem_unlink(sem_server.c_str());
+	sem_unlink(sem_getback.c_str());
+	cout<<"close SHM: "<<localAppName<<endl;
+	return;
 }
 
 void listen_addpool()
@@ -271,7 +283,7 @@ void listen_addpool()
 			}else{
 				while(slockForRecord.test_and_set(memory_order_acquire));
 				(poolRecord[poolName].first)++;
-				newShmId = ++(poolRecord[poolName].second);
+				newShmId = (poolRecord[poolName].second)++;
 				slockForRecord.clear(memory_order_release);
 
 				name2CHS[poolName]->adjustSize(newShmId);

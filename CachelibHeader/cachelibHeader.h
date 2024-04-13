@@ -6,6 +6,7 @@
 #define CACHELIB_HEADER
 
 #include "cachelib/allocator/CacheAllocator.h"
+#include "cachelib/allocator/nvmcache/NavyConfig.h"
 #include "folly/init/Init.h"
 
 
@@ -26,6 +27,7 @@ using RemoveRes = Cache::RemoveRes;
 using RebalanceStrategy=cachelib::RebalanceStrategy;
 
 using Estimates = cachelib::util::PercentileStats::Estimates;
+using NavyConfig = cachelib::navy::NavyConfig;
 
 
 // Global cache object 
@@ -38,6 +40,9 @@ extern size_t poolSize;
 
 //提供创建cachelib实例时默认的配置
 void cacheConfigure(CacheConfig& config);
+
+//prepare nvm config
+NavyConfig getNvmConfig(const std::string& cacheDir);
 
 //对cachelib实例的初始化并启动cachelib实例
 void initializeCache();

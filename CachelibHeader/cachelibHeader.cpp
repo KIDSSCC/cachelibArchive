@@ -12,15 +12,35 @@ size_t poolSize = (size_t)40 * 1024 * 1024;
 size_t defaultPoolSize = (size_t) 120 * 1024 * 1024;
 
 
+NavyConfig getNvmConfig(const std::string& cacheDir){
+	NavyConfig config{};
+	config.setSimpleFile(cacheDir + "/navy", 200 * 1024ULL * 1024ULL);
+	config.setBlockSize(4096);
+	config.setDeviceMetadataSize(4 * 1024 * 1024);
+	config.setNavyReqOrderingShards(10);
+	config.blockCache().setRegionSize(4 * 1024 * 1024);
+	config.bigHash()
+		.setSizePctAndMaxItemSize(50, 100)
+		.setBucketSize(4096)
+		.setBucketBfSize(8);
+	return config;
+}
 
 void cacheConfigure(CacheConfig& config)
 {
-    config.setCacheSize(cacheSize);  //2GB cache
+    config.setCacheSize(cacheSize);  
     config.setCacheName("Cachelib Cache");
     config.setAccessConfig({25, 10});   //bucket power = 25,lock power = 10
 
     const uint32_t poolResizeSlabsPerIter = 100000;
     config.enablePoolResizing(std::make_shared<RebalanceStrategy>(),std::chrono::milliseconds{1}, poolResizeSlabsPerIter);
+
+    //nvm config
+    std::string cacheDir_ = folly::sformat("nvmcache");
+    cachelib::util::makeDir(cacheDir_);
+    Cache::NvmCacheConfig nvmConfig;
+    nvmConfig.navyConfig = getNvmConfig(cacheDir_);
+    //config.enableNvmCache(nvmConfig);
     config.validate();   
 }
 
@@ -30,8 +50,8 @@ void initializeCache()
     cacheConfigure(config);
     gCache_ = std::make_unique<Cache>(config);
     std::cout<<"Create Cache successfully\n";
-    defaultPool_ = gCache_->addPool("default_",defaultPoolSize);
-    std::cout<<"defaultPool_ is: "<<(int)defaultPool_<<std::endl;
+    //defaultPool_ = gCache_->addPool("default_",defaultPoolSize);
+    //std::cout<<"defaultPool_ is: "<<(int)defaultPool_<<std::endl;
 }
 
 void destroyCache()
@@ -42,7 +62,7 @@ void destroyCache()
 
 int addpool_(std::string poolName)
 {
-    return 0;
+    //return 0;
     cachelib::PoolId poolId = gCache_->getPoolId(poolName);
     if(poolId==-1){
         poolId = gCache_->addPool(poolName, poolSize);
@@ -67,8 +87,7 @@ bool set_(cachelib::PoolId pid, CacheKey key, const std::string& value)
 std::string get_(CacheKey key)
 {
     CacheReadHandle rh = gCache_->find(key);
-    if(!rh)
-    {
+    if(!rh){
         return "";
     }
     folly::StringPiece data{reinterpret_cast<const char*>(rh->getMemory()), rh->getSize()};

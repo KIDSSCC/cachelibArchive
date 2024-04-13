@@ -413,6 +413,8 @@ void just_addPool(char* diskFile){
 		cout<<"Error open: "<<diskFile<<endl;
 		exit(0);
 	}
+	int pause;
+	cin>>pause;
 	tdb_close(db);
 }
 	

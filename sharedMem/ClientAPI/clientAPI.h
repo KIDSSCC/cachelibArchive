@@ -10,6 +10,7 @@
 #include <unistd.h>
 
 #include "shm_util.h"
+#include <random>
 
 
 using namespace std;
@@ -35,6 +36,7 @@ private:
     char getValue[1024];
 public:
     CachelibClient();
+    ~CachelibClient();
     void prepare_shm(string appName);
     int addpool(string poolName);
     void setKV(string key,string value);
@@ -44,5 +46,11 @@ public:
     //util
     int getPid(){return this->pid;};
     int getHit;
+
+
+    //random
+    random_device rd;
+    mt19937 gen;
+    uniform_real_distribution<double> dis;
 };
 #endif

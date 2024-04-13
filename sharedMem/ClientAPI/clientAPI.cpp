@@ -1,7 +1,8 @@
 #include "clientAPI.h"
+#include "random"
 
 
-CachelibClient::CachelibClient()
+CachelibClient::CachelibClient():gen(rd()), dis(0.0, 1.0)
 {
     cout<<"------shared memory------\n";
     this->msgid=msgget(MSG_KEY, 0666);
@@ -12,6 +13,14 @@ CachelibClient::CachelibClient()
         exit(EXIT_FAILURE);
     }
     this->getHit=0;
+}
+CachelibClient::~CachelibClient(){
+	//锁资源
+	while(sem_trywait(this->semaphore_Server)!=0);
+	//准备要存入共享内存的数据
+	shm_stru* message=static_cast<shm_stru*>(this->shared_memory);
+	message->ctrl=SIG_CLOSE;
+	sem_post(this->semaphore);
 }
 /*
 CachelibClient::CachelibClient()
@@ -75,6 +84,13 @@ void CachelibClient::prepare_shm(string appName)
     do{
         this->semaphore_GetBack = sem_open(sem_getback.c_str(), 0);
     } while (this->semaphore_GetBack==SEM_FAILED);
+
+
+    shm_stru* message=static_cast<shm_stru*>(this->shared_memory);
+    strcpy(message->shmId, appName.c_str());
+    return;
+
+
 }
 
 int CachelibClient::addpool(string poolName)
@@ -99,23 +115,40 @@ int CachelibClient::addpool(string poolName)
 		close(client_socket);
 		exit(EXIT_FAILURE);
 	}
-	int recvPid;	
-	int bytesReceived = recv(client_socket, &recvPid, sizeof(recvPid), 0);
+
+	char buffer[32];
+	memset(buffer, 0, sizeof(buffer));
+	int bytesReceived = recv(client_socket, buffer, 32, 0);
 	if (bytesReceived == -1){
 		cout<<"Error: Failed to recv response\n";
 		close(client_socket);
 		exit(EXIT_FAILURE);
 	}
+	close(client_socket);
+	string recvInfo = buffer;
+	size_t spacePosition = recvInfo.find(' ');
+	this->pid = stoi(recvInfo.substr(0, spacePosition));
+	string shmId = recvInfo.substr(spacePosition+1);
+
+	this->prefix = poolName + "_";
+	prepare_shm(shmId);
+	return this->pid;
+
+
+
+	/*
+	int recvPid;	
+	int bytesReceived = recv(client_socket, &recvPid, sizeof(recvPid), 0);
+	
 	//cout<<"from client, send: "<<message<<" and recvive pid is: "<<recvPid<<endl;
 
 	//cout << "Server response: " << recvPid << endl;
-	close(client_socket);
 	
 	this->pid = recvPid;
-	//this->prefix = to_string(recvPid) + "_";
 	this->prefix = poolName + "_";
 	prepare_shm(poolName);
 	return pid;
+	*/
 		
 
 
@@ -195,14 +228,23 @@ char* CachelibClient::getKV(string key)
     //等待回传
     while(sem_trywait(this->semaphore_GetBack)!=0);
     memset(this->getValue,0,sizeof(this->getValue));
-    strcpy(this->getValue,message->value);
 
-    //释放资源
-    sem_post(this->semaphore_Server);
-    if(strlen(this->getValue)!=0)
-        this->getHit++;
-    //cout<<"in clientAPI get value is: "<<this->getValue<<endl;
-    return this->getValue;
+
+    //control cache miss
+    double randomNum = dis(gen);
+    if(randomNum>=0){
+    	strcpy(this->getValue,message->value);
+
+    	//释放资源
+    	sem_post(this->semaphore_Server);
+    	if(strlen(this->getValue)!=0)
+        	this->getHit++;
+    	//cout<<"in clientAPI get value is: "<<this->getValue<<endl;
+    	return this->getValue;
+    }else{
+	    sem_post(this->semaphore_Server);
+	    return this->getValue;
+    }
 }
 
 bool CachelibClient::delKV(string key)

@@ -91,22 +91,4 @@ public:
 
 };
 
-class CacheStat{
-public:
-	size_t availableSize;
-	std::map<std::string, size_t> allPoolSize;
-	
-	void printCacheStat(){
-		std::cout<<"availableSize: "<<this->availableSize<<std::endl;
-		std::cout<<"allPoolSize: "<<std::endl;
-		for(const auto& pair:allPoolSize){
-			std::cout<<"[ "<<pair.first<<", "<<pair.second<<" ]"<<std::endl;
-		}
-
-	}
-
-};
-
-
-
 #endif

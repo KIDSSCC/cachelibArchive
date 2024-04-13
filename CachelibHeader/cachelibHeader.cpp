@@ -66,10 +66,6 @@ int addpool_(std::string poolName)
     cachelib::PoolId poolId = gCache_->getPoolId(poolName);
     if(poolId==-1){
         poolId = gCache_->addPool(poolName, poolSize);
-    	//poolSize = poolSize+(size_t)512 * 1024 * 1024;
-	//std::cout<<"pool nonexist,name is: "<<poolName<<" and pid is: "<<(int)poolId<<std::endl;
-    }else{
-	//std::cout<<"pool exist,name is: "<<poolName<<" and pid is: "<<(int)poolId<<std::endl;
     }
     return poolId;
 }

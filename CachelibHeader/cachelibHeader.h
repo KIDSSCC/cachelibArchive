@@ -38,36 +38,40 @@ extern size_t cacheSize ;
 extern size_t poolSize;
 
 
-//提供创建cachelib实例时默认的配置
+//set cachelib default config
 void cacheConfigure(CacheConfig& config);
 
-//prepare nvm config
+//ser hybrid config(nvm config)
 NavyConfig getNvmConfig(const std::string& cacheDir);
 
-//对cachelib实例的初始化并启动cachelib实例
+//create a new cachelib instance
 void initializeCache();
 
-//销毁cachelib实例
+//reclaim cachelib instance
 void destroyCache();
 
-//向cachelib中添加一个新的池或搜索现有的池，池的大小为默认的参数
+//add a new pool or search the existing pool,return pool id
 int addpool_(std::string poolName);
 
-//数据set操作
+//data access API
 bool set_(cachelib::PoolId pid, CacheKey key, const std::string& value);
-
-//数据get操作
 std::string get_(CacheKey key);
-
-//数据del操作
 bool del_(CacheKey key);
 
 
-//cachelib stats
+//get total available size of the cache instance
 size_t getAvailableSize();
+
+//get pool id of all pools
 std::set<PoolId> getPoolIds_();
+
+//get pool status according pool id
 PoolStats getPoolStat(PoolId pid);
+
+//get pool size according pool name
 size_t getPoolSizeFromName(std::string poolName);
+
+//adjust the pool size
 void resizePool(std::string poolName, size_t newSize);
 
 }

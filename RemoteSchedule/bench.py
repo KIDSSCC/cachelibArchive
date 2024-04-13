@@ -116,14 +116,14 @@ def execute_tmdb_run(wl):
         print_1('itea is:'+str(itea))
         print_bytes(wl, std_out)
         itea = itea+1
-        if itea>1:
+        if itea>2:
             break
         
 def capture_log():
     itea = 1
     latency_capture = 'latency_capture.log'
     while itea < 4:
-        time.sleep(10)
+        time.sleep(20)
         pool_size_map = get_pool_stats()
         config = [[],[],[],[]]
         print(pool_size_map)

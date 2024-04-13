@@ -328,6 +328,12 @@ void listen_addpool()
 			//cout<<"getMessage: "<<getMessage<<endl;
 			executeNewConfig(getMessage);
 
+		}else if(buf[0]=='E'){
+			//end server
+			close(client_socket);
+			close(server_socket);
+			break;
+
 		}
 		close(client_socket);
 	}

@@ -2,6 +2,8 @@
 #define CLIENT_API_SHM
 
 #include <iostream>
+#include <queue>
+#include <vector>
 #include <thread>
 #include <cstring>
 #include <sys/socket.h>
@@ -52,5 +54,30 @@ public:
     random_device rd;
     mt19937 gen;
     uniform_real_distribution<double> dis;
+};
+
+class TailLatency {
+private:
+	priority_queue<long long, vector<long long>, greater<long long>> max_heap;
+	int size;
+public:
+	TailLatency(int k) : size(k) {}
+	void push(long long num){
+		if(max_heap.size()<size){
+			max_heap.push(num);
+		}else{
+			if(num>max_heap.top()){
+				max_heap.pop();
+				max_heap.push(num);
+			}
+		}
+	}
+	long long getResult(){
+		return max_heap.top();
+	}
+	void clear(){
+		priority_queue<long long,vector<long long>,greater<long long>>().swap(max_heap);
+	}
+
 };
 #endif

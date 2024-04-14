@@ -15,6 +15,7 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <chrono>
 using namespace std;
 //#define CACHELIB_LOCAL
 
@@ -31,7 +32,10 @@ double getUsedTime(const timeval& st,const timeval& en)
 	double endTime=timeval_to_seconds(en);
 	return endTime-startTime;
 }
-
+long long int timeval_diff_nsec(const std::chrono::time_point<std::chrono::high_resolution_clock>& start, const std::chrono::time_point<std::chrono::high_resolution_clock>& end) {
+    std::chrono::nanoseconds duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
+    return duration.count();
+}
 //-----------------------------
 //
 //    test functions
@@ -417,7 +421,72 @@ void just_addPool(char* diskFile){
 	cin>>pause;
 	tdb_close(db);
 }
-	
+/*
+ * void just_run_TL
+ * need complete file name
+ * execute run phase and print log per 1000operations
+ * */
+void just_run_TL(string fileName, char* diskFile){
+	char mode[] = "w";
+	TDB* db=tdb_open(diskFile,mode);
+	if(!db){
+		cout<<"Error open: "<<diskFile<<endl;
+		exit(0);
+	}
+	fstream fileLoad(fileName);
+	TailLatency _999tl(1000);
+	string logFileName = string(diskFile)+"_performance.log";
+	string line;
+	int operCount = 0;
+	while(getline(fileLoad,line)){
+		//read a line from workload file
+		if(line[0]=='-')
+			continue;
+		else if(line=="insert"||line=="update")
+		{
+			//insert operation or update operation
+			getline(fileLoad,line);
+			string key=line.substr(5);
+			getline(fileLoad,line);
+			string value=line.substr(8);
+
+			chrono::time_point start = chrono::high_resolution_clock::now();
+			tdb_store(db,key.c_str(),value.c_str(),TDB_INSERT);
+			chrono::time_point end = chrono::high_resolution_clock::now();
+
+			//cout<<line<<" operation-----key is: "<<key<<" and value is: "<<value<<endl;
+			//operCount++;
+		}
+		else if(line=="read")
+		{
+			//read operation
+			getline(fileLoad,line);
+			string key=line.substr(5);
+
+			auto start = chrono::high_resolution_clock::now();
+			string get_value=tdb_fetch(db,key.c_str());
+			auto end = chrono::high_resolution_clock::now();
+			_999tl.push(timeval_diff_nsec(start, end));
+			
+			//cout<<"get operation-----key is: "<<key<<" and get_value is: "<<get_value<<endl;
+			operCount++;
+		}
+		if(operCount>1000000){
+			//print log
+			ofstream logFile(logFileName, ios::app);
+			if(logFile.is_open()){
+				long long tailLatency = _999tl.getResult();
+				string log = "99.9\% tail latency is: " + to_string(tailLatency);
+				logFile<<log<<endl;
+				logFile.close();
+			}
+			operCount = 0;
+			_999tl.clear();
+		}
+	}
+	tdb_close(db);
+	fileLoad.close();
+}
 void parallel_test(int argc,char*argv[])
 {
 	char* input_file=nullptr;
@@ -676,7 +745,7 @@ int main(int argc,char*argv[]){
 	if(operationType == 1){
 		just_load(fileName, output_file);
 	}else if(operationType == 2){
-		just_run(fileName, output_file);
+		just_run_TL(fileName, output_file);
 	}else{
 		just_addPool(output_file);
 	}

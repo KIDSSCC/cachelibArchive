@@ -35,14 +35,14 @@ private:
     sem_t* sema_write_right;
     sem_t* sema_add_pool_back;
     //接收get操作返回结果
-    char getValue[1024];
+    char getValue[SHM_VALUE_SIZE];
 public:
     CachelibClient();
     ~CachelibClient();
     void prepare_shm(string appName);
     int addpool(string poolName);
     void setKV(string key,string value);
-    char* getKV(string key);
+    string getKV(string key);
     bool delKV(string key);
 
     //util
@@ -58,11 +58,12 @@ public:
 
 class TailLatency {
 private:
-	priority_queue<long long, vector<long long>, greater<long long>> max_heap;
+	priority_queue<long long, vector<long long>, less<long long>> max_heap;
 	int size;
 public:
 	TailLatency(int k) : size(k) {}
 	void push(long long num){
+		/*
 		if(max_heap.size()<size){
 			max_heap.push(num);
 		}else{
@@ -71,12 +72,35 @@ public:
 				max_heap.push(num);
 			}
 		}
+		*/
+		max_heap.push(num);
 	}
 	long long getResult(){
-		return max_heap.top();
+		//return max_heap.top();
+		int totalSize = max_heap.size();
+		int p999 = totalSize * 0.001;
+		int p95 = totalSize * 0.05;
+		int p50 = totalSize * 0.5;
+		int count = 0;
+		while(count<p999){
+			max_heap.pop();
+			count++;
+		}
+		cout<<"P999 is: "<<max_heap.top()<<endl;
+		while(count<p95){
+			max_heap.pop();
+			count++;
+		}
+		cout<<"P95 is: "<<max_heap.top()<<endl;
+		while(count<p50){
+			max_heap.pop();
+			count++;
+		}
+		cout<<"P50 is: "<<max_heap.top()<<endl;
+		return 0;
 	}
 	void clear(){
-		priority_queue<long long,vector<long long>,greater<long long>>().swap(max_heap);
+		priority_queue<long long,vector<long long>,less<long long>>().swap(max_heap);
 	}
 
 };

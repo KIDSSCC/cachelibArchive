@@ -35,7 +35,7 @@
 
 //共享内存配置
 #define SHM_KEY_SIZE 512
-#define SHM_VALUE_SIZE 1024
+#define SHM_VALUE_SIZE 10240
 #define SHM_ID_SIZE 32
 #define SIG_CLOSE -1
 #define SIG_SET 0

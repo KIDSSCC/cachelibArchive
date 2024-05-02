@@ -5,6 +5,7 @@
 CachelibClient::CachelibClient():gen(rd()), dis(0.0, 1.0)
 {
     cout<<"------shared memory------\n";
+	/*
     this->msgid=msgget(MSG_KEY, 0666);
     if (this->msgid == -1) 
     {
@@ -12,6 +13,7 @@ CachelibClient::CachelibClient():gen(rd()), dis(0.0, 1.0)
         cerr<<"MQ not exist,Server is offline\n";
         exit(EXIT_FAILURE);
     }
+	*/
     this->getHit=0;
 }
 CachelibClient::~CachelibClient(){
@@ -124,7 +126,7 @@ void CachelibClient::setKV(string key,string value)
     return ;
 }
 
-char* CachelibClient::getKV(string key)
+string CachelibClient::getKV(string key)
 {
     //锁资源
     while(sem_wait(this->semaphore_Server)!=0);

@@ -259,7 +259,7 @@ typedef	void *TDBHANDLE;
 
 TDB      *tdb_open(const char *, char *);
 void      tdb_close(TDB *);
-char     *tdb_fetch(TDB *, const char *);
+std::string tdb_fetch(TDB *, const char *);
 STATUS    tdb_store(TDB *, const char *, const char *, int);
 STATUS    tdb_delete(TDB *, const char *);
 void      tdb_rewind(TDB *);

@@ -534,7 +534,7 @@ STATUS	_db_store(TDB *db, const char *key, const char *value, int mode){
 	if (ret == KEY_ERROR){
 		return TDB_ERROR;
 	}
-
+	
 	//If key exist and record is insert mode
 	if (TDB_INSERT == mode && KEY_EXIST == ret ){
 		if (TDB_DEBUG){
@@ -861,8 +861,8 @@ char *_db_fetch(TDB *db, const char *key){
 
 		flock(db->idx_fd, LOCK_UN);
 		flock(db->dat_fd, LOCK_UN);
-		free(dat_buf);
-		dat_buf = NULL;
+		//free(dat_buf);
+		//dat_buf = NULL;
 
 		return (char *)ret_buf;
 		
@@ -1097,10 +1097,10 @@ void tdb_close(TDB *db) {
 /**
  * Fetch key
  */
-char *tdb_fetch(TDB *db, const char *key){
+std::string tdb_fetch(TDB *db, const char *key){
 	#ifdef KID_CACHELIB
-		char* res = db->client->getKV(key);
-		if(strlen(res)==0)
+	std::string res = db->client->getKV(key);
+		if(res.length()==0)
 		{
 			char* disk_res=_db_fetch(db, key);
 			db->client->setKV(key, disk_res);

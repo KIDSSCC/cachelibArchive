@@ -85,7 +85,7 @@ void executeNewConfig(string config){
 
 
 
-void sharedMemCtl(const char* appName, int no, CacheHitStatistics* chs)
+void sharedMemCtl(string appName, int no, CacheHitStatistics* chs)
 {
     int SHARED_MEMORY_SIZE = sizeof(shm_stru);
     string localAppName = appName;
@@ -182,7 +182,7 @@ void sharedMemCtl(const char* appName, int no, CacheHitStatistics* chs)
 	//if(!chs->spinlock.test_and_set(memory_order_acquire)){
 	if(no == 0){
 		gettimeofday(&(chs->endTime), NULL);
-		if(getUsedTime(chs->startTime, chs->endTime)>2){
+		if(getUsedTime(chs->startTime, chs->endTime)>5){
 			//cout<<"name is: "<<localAppName<<" and time is: "<<getUsedTime(chs->startTime, chs->endTime)<<endl;
 			while(chs->spinlockForRate.test_and_set(memory_order_acquire));
 			double t_totalGet = 0;
@@ -278,19 +278,16 @@ void listen_addpool()
 				slockForRecord.clear(memory_order_release);
 
 				name2CHS[poolName] = new CacheHitStatistics(poolName);
-				name2CHS[poolName]->adjustSize(newShmId);
 				
 			}else{
 				while(slockForRecord.test_and_set(memory_order_acquire));
 				(poolRecord[poolName].first)++;
 				newShmId = (poolRecord[poolName].second)++;
 				slockForRecord.clear(memory_order_release);
-
-				name2CHS[poolName]->adjustSize(newShmId);
-				
 			}
+			name2CHS[poolName]->adjustSize(newShmId);
 			string shmId = poolName + "_" + to_string(newShmId);
-			thread t(sharedMemCtl, shmId.c_str(), newShmId, name2CHS[poolName]);
+			thread t(sharedMemCtl, shmId, newShmId, name2CHS[poolName]);
 			t.detach();
 
 			string sendInfo = to_string(pid) + " " + shmId;

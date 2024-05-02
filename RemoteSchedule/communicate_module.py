@@ -50,7 +50,7 @@ if __name__ == '__main__':
         
         new_config = []
         new_config.append(old_config[0])
-        new_partition = [old_config[1][0]-2, old_config[1][1]+2, old_config[1][2]]
+        new_partition = [old_config[1][0], old_config[1][1], old_config[1][2]]
         new_config.append(new_partition)
 
         '''

@@ -9,7 +9,9 @@ import pickle
 host = '127.0.0.1'
 port = 54000
 executable_path = '/home/md/SHMCachelib/Build/tmdb_test'
-data_path = '/home/md/MicroData2/'
+data_path = '/home/md/workloadData/'
+
+sig_end = 0
 
 
 
@@ -110,45 +112,38 @@ def execute_tmdb_run(wl):
     command_order = [executable_path, '-i', file_run, '-o', wl, '-r']
 
     itea = 1
-    while(True):
+    while(sig_end == 0):
         process = subprocess.Popen(command_order, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
         std_out, _ = process.communicate()
-        print_1('itea is:'+str(itea))
-        print_bytes(wl, std_out)
-        itea = itea+1
-        if itea>2:
-            break
+        # print_1('itea is:'+str(itea))
+        # print_bytes(wl, std_out)
+        # itea = itea+1
+        #if itea>2:
+        #    break
         
-def capture_log():
+def capture_log(workloads):
     itea = 1
     latency_capture = 'latency_capture.log'
-    while itea < 4:
-        time.sleep(20)
-        pool_size_map = get_pool_stats()
-        config = [[],[],[],[]]
-        print(pool_size_map)
-        for wl in pool_size_map.keys():
-            #lockFileName = wl + '.lock'
-            #while os.path.exists(lockFileName):
-                #pass
-            latency_log_name = wl + '_performance.log'
-            hitrate_log_name = '/home/md/SHMCachelib/' + wl + '_CacheHitRate.log'
-            latency_last_line = get_last_line(latency_log_name)
-            hitrate_last_line = get_last_line(hitrate_log_name)
-            #print(wl, last_line)
-            config[0].append(wl)
-            config[1].append(pool_size_map[wl])
-            config[2].append(latency_last_line[11:])
-            config[3].append(hitrate_last_line[16:])
-        new_config = resource_schedule(config)
-        set_pool_stats(new_config)
-        
-        for wl in pool_size_map.keys():
-            hitrate_log_name = '/home/md/SHMCachelib/' + wl + '_CacheHitRate.log'
-            with open(hitrate_log_name, 'a') as log_file:
-                print('adjust size', file=log_file)
 
-        itea = itea + 1
+    all_partition = []
+    for i in range(0, 31):
+        for j in range(0, 31-i):
+            all_partition.append([i, j, 30-i-j])
+    for i in range(len(all_partition)):
+        # time.sleep(10)
+        # set_pool_stats([workloads, all_partition[i]])
+        time.sleep(20)
+        hitrates = []
+        for wl in workloads:
+            hitrate_log_name = wl + '_CacheHitRate.log'
+            hitrates.append(get_last_line(hitrate_log_name)[16:])
+        print_1(all_partition[i])
+        print_1(hitrates)
+
+        schedule = 'scheduleMangement/findOptimal_' + str(i+1) + '_' + str(len(all_partition)) + '.log'
+        file = open(schedule, 'w')
+        file.close()
+    sig_end = 1
 
 
 def print_bytes(name, result):
@@ -162,7 +157,13 @@ def print_bytes(name, result):
 
 if __name__ == '__main__':
     
-    workloads = ['wlzipfian', 'wluniform', 'wlhotspot']
+    workloads = ['F', 'G', 'H']
+    # start server
+    server_path = ['/home/md/SHMCachelib/Build/Server']
+    server_proc = subprocess.Popen(server_path, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
+    time.sleep(3)
+
+
     # load the origin data
     print_1('-----Load Phase-----')
     all_load_proc = []
@@ -179,12 +180,15 @@ if __name__ == '__main__':
         all_run_thread.append(threading.Thread(target = execute_tmdb_run, args = (wl,)))
         all_run_thread[-1].start()
 
-    capture_latency = threading.Thread(target = capture_log)
+    capture_latency = threading.Thread(target = capture_log, args = (workloads,))
     capture_latency.start()
     capture_latency.join()
     print_1('capture finished')
     for t in all_run_thread:
         t.join()
+    
+    # end server
+    server_proc.terminate()
 
     #new_config = [['zipfian', 'uniform'], [2, 4]]
     #set_pool_stats(new_config)

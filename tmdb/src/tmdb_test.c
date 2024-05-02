@@ -103,7 +103,7 @@ int _db_insert_test(int total, char *df){
  */
 int _db_read_test(int total, char *df){
 	char n[16];
-	char *dat = NULL;
+	string dat = NULL;
 	int i = 0;
 	int success = 0;
 	int s = 0;
@@ -367,7 +367,7 @@ void just_run(string fileName, char* diskFile){
 			string value=line.substr(8);
 			tdb_store(db,key.c_str(),value.c_str(),TDB_INSERT);
 			//cout<<line<<" operation-----key is: "<<key<<" and value is: "<<value<<endl;
-			operCount++;
+			//operCount++;
 		}
 		else if(line=="read")
 		{
@@ -376,7 +376,7 @@ void just_run(string fileName, char* diskFile){
 			string key=line.substr(5);
 			string get_value=tdb_fetch(db,key.c_str());
 			//cout<<"get operation-----key is: "<<key<<" and get_value is: "<<get_value<<endl;
-			operCount++;
+			//operCount++;
 		}
 #ifdef PRINT_LATENCY
 		if(operCount>100000){
@@ -417,9 +417,50 @@ void just_addPool(char* diskFile){
 		cout<<"Error open: "<<diskFile<<endl;
 		exit(0);
 	}
-	int pause;
-	cin>>pause;
 	tdb_close(db);
+}
+/*
+ * void just_load()
+ * need complete file name
+ * execute load phase
+ * */
+void just_load_TL(string fileName,char* diskFile){
+	char mode[] = "c";
+	TDB* db=tdb_open(diskFile,mode);
+	if(!db){
+		cout<<"Error open: "<<diskFile<<endl;
+		exit(0);
+	}
+	fstream fileLoad(fileName);
+	if (!fileLoad.is_open()) { 	
+		cout << "Error opening fileLoad!" << endl;
+        	exit(0);
+    	}
+	string line;
+	TailLatency _999tl(1000);
+	while(getline(fileLoad,line)){
+		//read a line from workload file
+		if(line[0]=='-')
+			continue;
+		else if(line=="insert")
+		{
+			//insert operation
+			getline(fileLoad,line);
+			string key=line.substr(5);
+			getline(fileLoad,line);
+			string value=line.substr(8);
+			auto start = chrono::high_resolution_clock::now();
+			tdb_store(db,key.c_str(),value.c_str(),TDB_INSERT);
+			auto end = chrono::high_resolution_clock::now();
+			_999tl.push(timeval_diff_nsec(start, end));
+			//cout<<"set operation-----key is: "<<key<<" and value is: "<<value<<endl;
+		}
+	}
+	_999tl.getResult();
+	tdb_close(db);
+	fileLoad.close();
+	cout<<"finish load phase\n";
+
 }
 /*
  * void just_run_TL
@@ -437,7 +478,6 @@ void just_run_TL(string fileName, char* diskFile){
 	TailLatency _999tl(1000);
 	string logFileName = string(diskFile)+"_performance.log";
 	string line;
-	int operCount = 0;
 	while(getline(fileLoad,line)){
 		//read a line from workload file
 		if(line[0]=='-')
@@ -450,9 +490,10 @@ void just_run_TL(string fileName, char* diskFile){
 			getline(fileLoad,line);
 			string value=line.substr(8);
 
-			chrono::time_point start = chrono::high_resolution_clock::now();
+			auto start = chrono::high_resolution_clock::now();
 			tdb_store(db,key.c_str(),value.c_str(),TDB_INSERT);
-			chrono::time_point end = chrono::high_resolution_clock::now();
+			auto end = chrono::high_resolution_clock::now();
+			_999tl.push(timeval_diff_nsec(start, end));
 
 			//cout<<line<<" operation-----key is: "<<key<<" and value is: "<<value<<endl;
 			//operCount++;
@@ -463,14 +504,15 @@ void just_run_TL(string fileName, char* diskFile){
 			getline(fileLoad,line);
 			string key=line.substr(5);
 
+			//cout<<"get operation-----key is: "<<key<<endl;
 			auto start = chrono::high_resolution_clock::now();
 			string get_value=tdb_fetch(db,key.c_str());
 			auto end = chrono::high_resolution_clock::now();
 			_999tl.push(timeval_diff_nsec(start, end));
 			
 			//cout<<"get operation-----key is: "<<key<<" and get_value is: "<<get_value<<endl;
-			operCount++;
 		}
+		/*
 		if(operCount>1000000){
 			//print log
 			ofstream logFile(logFileName, ios::app);
@@ -483,7 +525,9 @@ void just_run_TL(string fileName, char* diskFile){
 			operCount = 0;
 			_999tl.clear();
 		}
+		*/
 	}
+	_999tl.getResult();
 	tdb_close(db);
 	fileLoad.close();
 }
@@ -716,6 +760,25 @@ void loadAndRun(int argc,char*argv[])
 }
 
 int main(int argc,char*argv[]){
+	/*
+	char* df = "one_test";
+	TDB *db = tdb_open(df, "c");
+	string k_key = "kidsscc_key";
+	string k_value = "kidsscc_value";
+	tdb_store(db, k_key.c_str(), k_value.c_str(), TDB_INSERT);
+	tdb_close(db);
+
+	cout<<"finish set KV\n";
+
+	TDB *db_r = tdb_open(df, "r");
+	string getValue = tdb_fetch(db_r, k_key.c_str());
+	cout<<"get value is: "<<getValue<<endl;
+	tdb_close(db_r);
+	
+	return 0;
+	*/
+
+
 	//insert&read test
 	#ifdef CACHELIB_LOCAL
 		facebook::cachelib_examples::initializeCache();
@@ -745,7 +808,10 @@ int main(int argc,char*argv[]){
 	if(operationType == 1){
 		just_load(fileName, output_file);
 	}else if(operationType == 2){
-		just_run_TL(fileName, output_file);
+		//string loadFile = "/home/md/workloadData/ex10K_load.txt";
+		//just_load(loadFile, output_file);
+		just_run(fileName, output_file);
+		//just_run(fileName, output_file);
 	}else{
 		just_addPool(output_file);
 	}

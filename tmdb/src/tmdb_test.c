@@ -49,7 +49,7 @@ int kidsscc_db_insert_test(int total,char*df);
 int kidsscc_db_read_test(int total,char*df);
 
 using namespace std;
-string prefix (10, 'A');
+string prefix (1000, 'A');
 
 /**
  * data insert
@@ -319,7 +319,7 @@ void just_load(string fileName,char* diskFile){
 			string key=line.substr(5);
 			getline(fileLoad,line);
 			string value=line.substr(8);
-			tdb_store(db,key.c_str(),value.c_str(),TDB_INSERT);
+			tdb_store(db,key.c_str(),prefix.c_str(),TDB_INSERT);
 			//cout<<"set operation-----key is: "<<key<<" and value is: "<<value<<endl;
 		}
 	}
@@ -530,6 +530,75 @@ void just_run_TL(string fileName, char* diskFile){
 	_999tl.getResult();
 	tdb_close(db);
 	fileLoad.close();
+}
+/*
+ * traverse_data: scan the load file and check the data info in *.tdb
+ * 
+ * */
+void traverse_data(string fileName, char* diskFile){
+	char mode[] = "w";
+	TDB* db = tdb_open(diskFile, mode);
+	if(!db){
+		cout<<"Error open: "<<diskFile<<endl;
+		exit(0);
+	}
+	fstream fileLoad(fileName);
+	string line;
+	while(getline(fileLoad, line)){
+		if(line[0] == '-'){
+			continue;
+		}else if(line=="insert"){
+			getline(fileLoad, line);
+			string key = line.substr(5);
+			getline(fileLoad, line);
+			tdb_fetch(db, key.c_str());
+		}
+	}
+	cout<<"finish scan\n";
+	tdb_close(db);
+	fileLoad.close();
+}
+
+/*
+ * correct_verification:execute simple set and get
+ * */
+void correct_verification(){
+	char mode[] = "c";
+	char cv_db[] = "cv_db";
+	TDB *db = tdb_open(cv_db, mode);
+	if(!db){
+		cout<<"open db: "<<cv_db<<" failed!"<<endl;
+		exit(0);
+	}
+	cout<<"begin to set\n";
+	int success = 0;
+	for(int i=0;i<1000;i++){
+		string key = "num_" + to_string(i);
+		string value(1000, char('A' + i % 26));
+		int res = tdb_store(db, key.c_str(), value.c_str(), TDB_INSERT);
+		if(res==TDB_SUCCESS)
+			success++;
+	}
+	tdb_close(db);
+	cout<<"finish set test, success: "<<success<<" in "<<1000<<" total\n";
+
+	mode[0] = 'r';
+	TDB *db_r = tdb_open(cv_db, mode);
+	if(!db_r){
+		cout<<"open db: "<<cv_db<<" failed!"<<endl;
+		exit(0);
+	}
+	cout<<"begin to get\n";
+	success = 0;
+	for(int i=0;i<1000;i++){
+		string key = "num_" + to_string(i);
+		string value(1000, char('A' + i % 26));
+		string getValue = tdb_fetch(db_r, key.c_str());
+		if(getValue==value)
+			success++;
+	}
+	tdb_close(db_r);
+	cout<<"finish get test, success: "<<success<<" in "<<1000<<" total\n";
 }
 void parallel_test(int argc,char*argv[])
 {
@@ -760,6 +829,8 @@ void loadAndRun(int argc,char*argv[])
 }
 
 int main(int argc,char*argv[]){
+	//correct_verification();
+	//return 0;
 	/*
 	char* df = "one_test";
 	TDB *db = tdb_open(df, "c");
@@ -808,10 +879,9 @@ int main(int argc,char*argv[]){
 	if(operationType == 1){
 		just_load(fileName, output_file);
 	}else if(operationType == 2){
-		//string loadFile = "/home/md/workloadData/ex10K_load.txt";
 		//just_load(loadFile, output_file);
 		just_run(fileName, output_file);
-		//just_run(fileName, output_file);
+		//traverse_data(fileName, output_file);
 	}else{
 		just_addPool(output_file);
 	}

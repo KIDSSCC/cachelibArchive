@@ -100,6 +100,7 @@ Describe the entire data storage structure:
 
 #define TDB_INT_SIZE			4			/* all int size */
 #define TDB_PRT_SIZE			4			/* all pointer size */
+#define TDB_OFF_SIZE			8
 
 #define TDB_MAX_HASH_BUCKET		65536		/* max hash bucket total */
 #define TDB_MAX_KEY_LEN			64			/* key string max byte length */
@@ -149,7 +150,7 @@ struct tdb_index_header_t {
 };
 
 struct tdb_index_key_ptr {
-	int keys[TDB_MAX_HASH_BUCKET];			/* index key list (hash bucket) array */
+	off_t keys[TDB_MAX_HASH_BUCKET];			/* index key list (hash bucket) array */
 };
 
 /* Index one key structure */
@@ -163,8 +164,8 @@ struct tdb_index_key_ptr {
 struct tdb_key_record_t {
 	int flag;								/* a key flag, delete */
 	char key[TDB_MAX_KEY_LEN];				/* key data */
-	int data_ptr;							/* target data recored pointer */
-	int next_ptr;							/* next key pointer */
+	off_t data_ptr;							/* target data recored pointer */
+	off_t next_ptr;							/* next key pointer */
 };
 
 
@@ -184,7 +185,7 @@ struct tdb_data_record_t {
 	int flag;								/* a data flag, delete */
 	int len;								/* record data length */
 	char *data;								/* record read data */
-	int next;								/* next recored pointer */
+	off_t next;								/* next recored pointer */
 };
 
 
@@ -214,21 +215,26 @@ typedef struct {
 	TDBHASH hash;				/* current hash postion */
 
 
-	off_t  idxoff;				/* offset in index file of index record */
+	//off_t  idxoff;				 offset in index file of index record 
 								/* key is at (idxoff + PTR_SZ + IDXLEN_SZ) */
+	off_t idxoff;
 	size_t idxlen;				/* length of index record */
 								/* excludes IDXLEN_SZ bytes at front of record */
 								/* includes newline at end of index record */
-	off_t preidx;				/* previous key postion */
+	//off_t preidx;				 previous key postion 
+	off_t preidx;
 
-	off_t key_ptr_pos;			/* Key bucket item store Key pointer postion (address)*/
+	//off_t key_ptr_pos;			 Key bucket item store Key pointer postion (address)
+	off_t key_ptr_pos;
 
 
-	off_t  datoff;				/* offset in data file of data record */
+	//off_t  datoff;				 offset in data file of data record 
+	off_t datoff;
 	size_t datlen;				/* length of data record */
 								/* includes newline at end */
 
-	off_t next_off;				/* Next record index offset */
+	//off_t next_off;				 Next record index offset 
+	off_t next_off;
 
 	//off_t  ptrval;		/* contents of chain ptr in index record */
 	//off_t  ptroff;		/* chain ptr offset pointing to this idx record */

@@ -24,7 +24,7 @@
 	宏定义KID_CACHELIB远程连接cachelib
 */
 #define KIDSSCC
-#define KID_CACHELIB
+//#define KID_CACHELIB
 
 #ifdef KIDSSCC
 	#define err_dump(message) err_dump(const_cast<char*>(message))
@@ -61,6 +61,9 @@ STATUS	_db_delete(TDB *, const char *);
 char	*_db_fetch(TDB *, const char *);
 void	_db_rewind(TDB *);
 char	*_db_nextrec(TDB *, char *);
+
+
+void checkidx(const char*);
 
 
 
@@ -108,7 +111,7 @@ void p_data_record(struct tdb_data_record_t *data_record){
 	printf("data_record->flag : %d\n", data_record->flag);
 	printf("data_record->len : %d\n", data_record->len);
 	printf("data_record->data : %s\n", data_record->data);
-	printf("data_record->next : %d\n", data_record->next);
+	printf("data_record->next : %ld\n", data_record->next);
 	printf("-------------------Done--------------------\n");
 }
 
@@ -119,7 +122,7 @@ void p_key_record(struct tdb_key_record_t *key_record){
 	printf("\n--------------TDB Key Record--------------\n");
 	printf("key_record->flag : %d\n", key_record->flag);
 	printf("key_record->key : %s\n", key_record->key);
-	printf("key_record->data_ptr : %d\n", key_record->data_ptr);
+	printf("key_record->data_ptr : %ld\n", key_record->data_ptr);
 	printf("-------------------Done-------------------\n");
 }
 
@@ -321,11 +324,12 @@ STATUS _db_create(TDB *db) {
 		err_dump("_db_create: write index header record total fail");
 	}
     //Init index file: header + hash buckets
-    off_t offset = TDB_INDEX_HEADER_LEN+(TDB_MAX_HASH_BUCKET*TDB_PRT_SIZE) - TDB_INT_SIZE; 
-    if ( fseek(db->idx_fp, offset, SEEK_SET) != 0){
+    off_t offset = TDB_INDEX_HEADER_LEN+(TDB_MAX_HASH_BUCKET*TDB_OFF_SIZE) - TDB_OFF_SIZE; 
+    if ( fseeko(db->idx_fp, offset, SEEK_SET) != 0){
 		err_dump("_db_create: init index file fseek() fail");
 	}
-	if ( fwrite(&zero, TDB_INT_SIZE, 1, db->idx_fp) != 1){
+	off_t ozero = 0;
+	if ( fwrite(&ozero, TDB_OFF_SIZE, 1, db->idx_fp) != 1){
 		err_dump("_db_create: init index fwrite() fail");
 	}
 	fflush(db->idx_fp);
@@ -369,7 +373,7 @@ TDBHASH _db_hash(TDB *db, const char *str) {
  */
 STATUS _db_find_and_lock(TDB *db, const char *key, int is_write) {
 	int key_pos = 0;
-	int key_ptr_pos = 0; 
+	off_t key_ptr_pos = 0; 
 	int key_max_pos = 0;
 	int key_len = 0; 
 	int find = 0;
@@ -387,11 +391,11 @@ STATUS _db_find_and_lock(TDB *db, const char *key, int is_write) {
 	}
 
 	//Find a key postion
-	key_pos = TDB_INDEX_HEADER_LEN + (db->hash * TDB_INT_SIZE);
-	key_max_pos = TDB_INDEX_HEADER_LEN + (TDB_MAX_HASH_BUCKET * TDB_INT_SIZE);
+	key_pos = TDB_INDEX_HEADER_LEN + (db->hash * TDB_OFF_SIZE);
+	key_max_pos = TDB_INDEX_HEADER_LEN + (TDB_MAX_HASH_BUCKET * TDB_OFF_SIZE);
 	key_len = sizeof(struct tdb_key_record_t);
 	fseek(db->idx_fp, key_pos, SEEK_SET);
-	if ( fread(&key_ptr_pos, TDB_PRT_SIZE, 1, db->idx_fp) != 1){
+	if ( fread(&key_ptr_pos, TDB_OFF_SIZE, 1, db->idx_fp) != 1){
 		if (TDB_DEBUG){
 			off_t i_off = ftell(db->idx_fp);
 			#ifdef KIDSSCC
@@ -425,9 +429,10 @@ STATUS _db_find_and_lock(TDB *db, const char *key, int is_write) {
 		return KEY_ERROR;
 	}
 	find = 0;
+	//kidsscc
 	while (1) {
 		//Key record not exist
-		fseek(db->idx_fp, key_ptr_pos, SEEK_SET);
+		fseeko(db->idx_fp, key_ptr_pos, SEEK_SET);
 		fread(key_record, key_len, 1, db->idx_fp);
 		db->preidx = ftell(db->idx_fp);
 		if ( NULL == key_record || NULL == key_record->key ){
@@ -570,7 +575,7 @@ STATUS	_db_store(TDB *db, const char *key, const char *value, int mode){
 	data_record->len  = strlen(value);
 	data_record->data = (char *)malloc(data_record->len+1);
 	strcpy(data_record->data, value);
-	data_record->data[data_record->len+1] = '\0';
+	data_record->data[data_record->len] = '\0';
 	data_record->next = 0;
 
 	if (TDB_DEBUG){
@@ -578,7 +583,7 @@ STATUS	_db_store(TDB *db, const char *key, const char *value, int mode){
 	}
 
 	//Write data record
-	int record_pos = 0; 
+	off_t record_pos = 0; 
 	int data_slen = 0; 
 
 	fseek(db->dat_fp, 0, SEEK_END);
@@ -594,8 +599,8 @@ STATUS	_db_store(TDB *db, const char *key, const char *value, int mode){
 		}
 	} else {
 		//update pre record next ptr address 
-		fseek(db->dat_fp, (0-TDB_PRT_SIZE), SEEK_END);
-		fwrite(&record_pos, TDB_PRT_SIZE, 1, db->dat_fp);
+		fseek(db->dat_fp, (0-TDB_OFF_SIZE), SEEK_END);
+		fwrite(&record_pos, TDB_OFF_SIZE, 1, db->dat_fp);
 		//write new data record
 		_write_data_record(db, data_record);
 		//fwrite(data_record, data_slen, 1, db->dat_fp);
@@ -611,8 +616,8 @@ STATUS	_db_store(TDB *db, const char *key, const char *value, int mode){
 	 */
 	//Pkg key record
 	struct tdb_key_record_t *key_record = NULL;
-	int key_pos = 0;
-	int key_ptr_pos = 0;
+	off_t key_pos = 0;
+	off_t key_ptr_pos = 0;
 	int key_slen = 0; 
 	int	key_len = 0;
 
@@ -643,20 +648,20 @@ STATUS	_db_store(TDB *db, const char *key, const char *value, int mode){
 
 		//first key update hash bucket pointer addr
 		if (KEY_FIRST == ret){
-			key_pos = TDB_INDEX_HEADER_LEN + (db->hash * TDB_INT_SIZE);
-			fseek(db->idx_fp, key_pos, SEEK_SET);
+			key_pos = TDB_INDEX_HEADER_LEN + (db->hash * TDB_OFF_SIZE);
+			fseeko(db->idx_fp, key_pos, SEEK_SET);
 			if (TDB_DEBUG){
 				printf("write not exist key (first key), key:%s\n", key);
 			}
 		} 
 		//Normal key write data_record->next_ptr address
 		else if (KEY_NOTEXIST == ret){
-			fseek(db->idx_fp, (db->preidx - TDB_PRT_SIZE), SEEK_SET);
+			fseeko(db->idx_fp, (db->preidx - TDB_OFF_SIZE), SEEK_SET);
 			if (TDB_DEBUG){
 				printf("write not exist key (normal key), key:%s\n", key);
 			}
 		}
-		fwrite(&key_ptr_pos, TDB_PRT_SIZE, 1, db->idx_fp);
+		fwrite(&key_ptr_pos, TDB_OFF_SIZE, 1, db->idx_fp);
 	
 		//flush & unlock
 		fflush(db->idx_fp);
@@ -677,9 +682,9 @@ STATUS	_db_store(TDB *db, const char *key, const char *value, int mode){
 	//Record is exist (replace old key)
 	if (KEY_EXIST == ret){
 		//fseek offset to key_record->data_ptr postion
-		fseek(db->idx_fp, (db->idxoff + TDB_INT_SIZE + TDB_MAX_KEY_LEN), SEEK_SET);
+		fseeko(db->idx_fp, (db->idxoff + TDB_INT_SIZE + TDB_MAX_KEY_LEN), SEEK_SET);
 		//modify key_record->data_ptr to new record address
-		fwrite(&record_pos, TDB_PRT_SIZE, 1, db->idx_fp);
+		fwrite(&record_pos, TDB_OFF_SIZE, 1, db->idx_fp);
 
 		//flush & unlock
 		fflush(db->idx_fp);
@@ -843,8 +848,16 @@ char *_db_fetch(TDB *db, const char *key){
 			dat_buf = calloc(TDB_MAX_RECORD_LEN, 1);
 		#endif
 		
-		fseek(db->dat_fp, (db->datoff+TDB_INT_SIZE), SEEK_SET);
-		fread(&len, TDB_PRT_SIZE, 1, db->dat_fp);
+		fseeko(db->dat_fp, (db->datoff+TDB_INT_SIZE), SEEK_SET);
+		fread(&len, TDB_INT_SIZE, 1, db->dat_fp);
+
+		//std::cout<<"----------\n";
+		//std::cout<<"key is: "<<key<<std::endl;
+		//std::cout<<"offset is: "<<db->datoff<<std::endl;
+		//std::cout<<"len is: "<<len<<std::endl;
+		//char* tmpRet = new char[10]();
+		//return tmpRet;
+
 		fread(dat_buf, sizeof(char), len, db->dat_fp);
 
 		dat_len = strlen(dat_buf);
@@ -1151,3 +1164,18 @@ char *tdb_nextrec(TDB *db, char *ret_key){
 	return _db_nextrec(db, ret_key);
 }
 
+
+/*
+ * check a index file
+ */
+void checkidx(const char * fileName){
+	FILE *filePointer = fopen(fileName, "rb");
+	fseek(filePointer, TDB_INDEX_HEADER_LEN + (TDB_MAX_HASH_BUCKET*TDB_PRT_SIZE), SEEK_SET);
+	while(!feof(filePointer)){
+		int keyLen = sizeof(struct tdb_key_record_t);
+		struct tdb_key_record_t *key_record = (struct tdb_key_record_t *)malloc(keyLen);
+		fread(&(key_record->flag), TDB_INT_SIZE, 1, filePointer);
+		fread(&(key_record->key), TDB_MAX_KEY_LEN, 1, filePointer);
+	}
+
+}

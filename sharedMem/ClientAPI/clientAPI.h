@@ -58,12 +58,12 @@ public:
 
 class TailLatency {
 private:
-	priority_queue<long long, vector<long long>, less<long long>> max_heap;
+	// when measure tail latency at a specific operations ,use greater,otherwise, use less
+	priority_queue<long long, vector<long long>, greater<long long>> max_heap;
 	int size;
 public:
 	TailLatency(int k) : size(k) {}
 	void push(long long num){
-		/*
 		if(max_heap.size()<size){
 			max_heap.push(num);
 		}else{
@@ -72,11 +72,11 @@ public:
 				max_heap.push(num);
 			}
 		}
-		*/
-		max_heap.push(num);
+		//max_heap.push(num);
 	}
 	long long getResult(){
-		//return max_heap.top();
+		return max_heap.top();
+		/*
 		int totalSize = max_heap.size();
 		int p999 = totalSize * 0.001;
 		int p95 = totalSize * 0.05;
@@ -98,9 +98,10 @@ public:
 		}
 		cout<<"P50 is: "<<max_heap.top()<<endl;
 		return 0;
+		*/
 	}
 	void clear(){
-		priority_queue<long long,vector<long long>,less<long long>>().swap(max_heap);
+		priority_queue<long long,vector<long long>,greater<long long>>().swap(max_heap);
 	}
 
 };

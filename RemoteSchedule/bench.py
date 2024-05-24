@@ -90,6 +90,14 @@ def resource_schedule(config):
     #new_config = [config[0], new_partition]
     return new_config
     
+'''
+construct all partitions
+'''
+def get_all_partitions():
+    all_partitions = []
+    for i in range(51):
+        all_partitions.append([i])
+    return all_partitions
 
 
 def print_1(line):
@@ -112,7 +120,7 @@ def execute_tmdb_run(wl):
     command_order = [executable_path, '-i', file_run, '-o', wl, '-r']
 
     itea = 1
-    while(sig_end == 0):
+    while sig_end == 0:
         process = subprocess.Popen(command_order, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
         std_out, _ = process.communicate()
         # print_1('itea is:'+str(itea))
@@ -125,20 +133,30 @@ def capture_log(workloads):
     itea = 1
     latency_capture = 'latency_capture.log'
 
-    all_partition = []
-    for i in range(0, 31):
-        for j in range(0, 31-i):
-            all_partition.append([i, j, 30-i-j])
+    all_partition = get_all_partitions()
     for i in range(len(all_partition)):
-        # time.sleep(10)
-        # set_pool_stats([workloads, all_partition[i]])
-        time.sleep(20)
+        set_pool_stats([workloads, all_partition[i]])
+        #time.sleep(20)
+        # write to file
+        for wl in workloads:
+            hitrate_file_name = wl + "_CacheHitRate.log"
+            latency_file_name = wl + "_performance.log"
+            message = 'adjust size to:' + str(all_partition[i]) + '\n'
+            #print(message)
+            with open(hitrate_file_name, 'a') as f:
+                f.write(message)
+            with open(latency_file_name, 'a') as f:
+                f.write(message)
+        time.sleep(180)
+        
+        '''
         hitrates = []
         for wl in workloads:
             hitrate_log_name = wl + '_CacheHitRate.log'
             hitrates.append(get_last_line(hitrate_log_name)[16:])
         print_1(all_partition[i])
         print_1(hitrates)
+        '''
 
         schedule = 'scheduleMangement/findOptimal_' + str(i+1) + '_' + str(len(all_partition)) + '.log'
         file = open(schedule, 'w')
@@ -157,7 +175,7 @@ def print_bytes(name, result):
 
 if __name__ == '__main__':
     
-    workloads = ['F', 'G', 'H']
+    workloads = ['uniform20G']
     # start server
     server_path = ['/home/md/SHMCachelib/Build/Server']
     server_proc = subprocess.Popen(server_path, stdout = subprocess.PIPE, stderr = subprocess.PIPE)

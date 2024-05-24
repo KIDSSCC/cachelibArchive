@@ -24,7 +24,7 @@
 	宏定义KID_CACHELIB远程连接cachelib
 */
 #define KIDSSCC
-//#define KID_CACHELIB
+#define KID_CACHELIB
 
 #ifdef KIDSSCC
 	#define err_dump(message) err_dump(const_cast<char*>(message))

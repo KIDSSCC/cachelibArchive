@@ -19,7 +19,7 @@
 #include "shm_util.h"
 
 #define MAX_WAIT 100000000
-#define SIZE_CONV ((size_t)4 * 1024 * 1024)
+#define SIZE_CONV ((size_t)512 * 1024 * 1024)
 using namespace std;
 using namespace facebook::cachelib_examples;
 

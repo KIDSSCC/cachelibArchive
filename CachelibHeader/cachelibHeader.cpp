@@ -6,8 +6,8 @@ namespace cachelib_examples {
 
 std::unique_ptr<Cache> gCache_;
 PoolId defaultPool_;
-size_t cacheSize = (size_t)120 * 1024 * 1024 + (size_t)4 * 1024 * 1024;
-size_t poolSize = (size_t)40 * 1024 * 1024 + (size_t)0 * 1024 * 1024;
+size_t cacheSize = (size_t)45 * 1024 * 1024 * 1024 + (size_t)4 * 1024 * 1024;
+size_t poolSize = (size_t)21 * 1024 * 1024 * 1024 + (size_t)0 * 1024 * 1024;
 
 size_t defaultPoolSize = (size_t)120 * 1024 * 1024 + (size_t)0 * 1024 * 1024;
 
@@ -50,8 +50,8 @@ void initializeCache()
     cacheConfigure(config);
     gCache_ = std::make_unique<Cache>(config);
     std::cout<<"Create Cache successfully\n";
-    defaultPool_ = gCache_->addPool("default_",defaultPoolSize);
-    std::cout<<"defaultPool_ is: "<<(int)defaultPool_<<std::endl;
+    //defaultPool_ = gCache_->addPool("default_",defaultPoolSize);
+    //std::cout<<"defaultPool_ is: "<<(int)defaultPool_<<std::endl;
 }
 
 void destroyCache()
@@ -62,7 +62,7 @@ void destroyCache()
 
 int addpool_(std::string poolName)
 {
-    return 0;
+    //return 0;
     cachelib::PoolId poolId = gCache_->getPoolId(poolName);
     if(poolId==-1){
         poolId = gCache_->addPool(poolName, poolSize);

@@ -102,7 +102,7 @@ Describe the entire data storage structure:
 #define TDB_PRT_SIZE			4			/* all pointer size */
 #define TDB_OFF_SIZE			8
 
-#define TDB_MAX_HASH_BUCKET		65536		/* max hash bucket total */
+#define TDB_MAX_HASH_BUCKET		655360		/* max hash bucket total */
 #define TDB_MAX_KEY_LEN			64			/* key string max byte length */
 #define TDB_MAX_RECORD_LEN		65536		/* max a record data length */
 

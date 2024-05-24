@@ -420,7 +420,7 @@ void just_addPool(char* diskFile){
 	tdb_close(db);
 }
 /*
- * void just_load()
+ * void just_load_TL()
  * need complete file name
  * execute load phase
  * */
@@ -478,6 +478,7 @@ void just_run_TL(string fileName, char* diskFile){
 	TailLatency _999tl(1000);
 	string logFileName = string(diskFile)+"_performance.log";
 	string line;
+	int operCount = 0;
 	while(getline(fileLoad,line)){
 		//read a line from workload file
 		if(line[0]=='-')
@@ -496,7 +497,7 @@ void just_run_TL(string fileName, char* diskFile){
 			_999tl.push(timeval_diff_nsec(start, end));
 
 			//cout<<line<<" operation-----key is: "<<key<<" and value is: "<<value<<endl;
-			//operCount++;
+			operCount++;
 		}
 		else if(line=="read")
 		{
@@ -511,8 +512,8 @@ void just_run_TL(string fileName, char* diskFile){
 			_999tl.push(timeval_diff_nsec(start, end));
 			
 			//cout<<"get operation-----key is: "<<key<<" and get_value is: "<<get_value<<endl;
+			operCount++;
 		}
-		/*
 		if(operCount>1000000){
 			//print log
 			ofstream logFile(logFileName, ios::app);
@@ -525,9 +526,7 @@ void just_run_TL(string fileName, char* diskFile){
 			operCount = 0;
 			_999tl.clear();
 		}
-		*/
 	}
-	_999tl.getResult();
 	tdb_close(db);
 	fileLoad.close();
 }
@@ -879,8 +878,9 @@ int main(int argc,char*argv[]){
 	if(operationType == 1){
 		just_load(fileName, output_file);
 	}else if(operationType == 2){
+		//string loadFile = "/home/md/workloadData/uniform20G_load.txt";
 		//just_load(loadFile, output_file);
-		just_run(fileName, output_file);
+		just_run_TL(fileName, output_file);
 		//traverse_data(fileName, output_file);
 	}else{
 		just_addPool(output_file);

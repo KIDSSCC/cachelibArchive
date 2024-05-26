@@ -87,7 +87,7 @@ def set_bandwidth(procs, bandwidths):
             classify_command = 'cgclassify -g blkio:' + group_name + ' ' + str(procs[i])
             subprocess.run(classify_command, shell=True, text=True, capture_output=False)
         # adjust the weigh
-        adjust_command = 'cgset -r blkio.weight=' + str(bandwidths[i] * 10) + ' ' + group_name
+        adjust_command = 'cgset -r blkio.throttle.write_bps_device="' + str(bandwidths[i] * 10) + ' ' + group_name
         subprocess.run(adjust_command, shell=True, text=True, capture_output=False)
 
 
@@ -95,15 +95,20 @@ if __name__ == '__main__':
     # delete all old group
     clear_groups()
 
-    write_test = ['dd', 'if=/dev/zero', 'of=testfile', 'bs=1G', 'count=5', 'oflag=direct']
-    read_test = ['dd', 'if=testfile', 'of=/dev/null', 'bs=1G', 'count=5', 'iflag=direct']
-    process = subprocess.Popen(read_test, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    pid = process.pid
-    
-    procs = [pid, 598]
+    write_test_1 = ['dd', 'if=/dev/zero', 'of=testfile_1', 'bs=2G', 'count=5', 'oflag=direct']
+    write_test_2 = ['dd', 'if=/dev/zero', 'of=testfile_2', 'bs=2G', 'count=5', 'oflag=direct']
+    process_1 = subprocess.Popen(write_test_1, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    pid_1 = process_1.pid
+    process_2 = subprocess.Popen(write_test_2, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    pid_2 = process_2.pid
+
+    procs = [pid_1, pid_2]
     bandwidths = [10, 90]
     set_bandwidth(procs, bandwidths)
 
-    stdout, stderr = process.communicate()
-    print('stdout is:', stdout)
-    print('stderr is:', stderr)
+    stdout_1, stderr_1 = process_1.communicate()
+    stdout_2, stderr_2 = process_2.communicate()
+    print('stdout_1 is:', stdout_1)
+    print('stderr_1 is:', stderr_1)
+    print('stdout_2 is:', stdout_2)
+    print('stderr_2 is:', stderr_2)

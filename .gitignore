@@ -4,3 +4,10 @@
 Build
 build
 *.log
+/.vscode
+/build
+/test.sql
+/leveldb
+/sqlite
+
+startup.sh

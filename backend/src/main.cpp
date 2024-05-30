@@ -4,16 +4,18 @@
 #include "backend/MongoDBBackend.h"
 #include "backend/LevelDBBackend.h"
 #include "backend/SQLiteBackend.h"
+#include "backend/TmdbBackend.h"
 #include "utils/percentile.h"
-#include "cache/clientAPI.h"
+//#include "cache/clientAPI.h"
+#include "clientAPI.h"
 #include "config.h"
 #include <thread>
 #include <vector>
 #include <mutex>
 #include <atomic>
 
-std::atomic<int> g_next_insert_key = 0;
 
+std::atomic<int> g_next_insert_key = 0;
 int main(int argc, char* argv[]) {
     bool cache_enabled = false;
     bool do_prepare = true;
@@ -59,7 +61,6 @@ int main(int argc, char* argv[]) {
         benchmark.prepare();
         std::cout << "Preparation done, " << g_next_insert_key << " records inserted." << std::endl;
     }
-
     if (do_run) {
         g_next_insert_key = MAX_RECORDS;
         std::vector<std::thread> threads;
@@ -70,6 +71,7 @@ int main(int argc, char* argv[]) {
 
                 BACKEND backend(0);
                 if (cache_enabled) {
+                    std::cout<<"enable cache\n";
                     backend.enable_cache(unified_cache);
                 }
                 

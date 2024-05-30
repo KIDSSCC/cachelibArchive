@@ -1,13 +1,13 @@
 # 原始客户端与服务端的编译
 cmake_minimum_required(VERSION 3.12)
 set(CMAKE_CXX_STANDARD 20)
-message("C++ standard: ${CMAKE_CXX_STANDARD}")
+message("-- Detecting C++ standard ${CMAKE_CXX_STANDARD}")
 
 project(CachelibServer CXX)
 
 find_package(cachelib CONFIG REQUIRED)
 
-include_directories("/home/md/SHMCachelib/")
+include_directories("${CMAKE_CURRENT_SOURCE_DIR}")
 
 # 编译cachelibHeader库
 set(CH_dir "${CMAKE_CURRENT_SOURCE_DIR}/CachelibHeader/")
@@ -31,6 +31,10 @@ target_include_directories(Server PUBLIC sharedMem)
 
 # 调用tmdb编译子模块
 include("${CMAKE_CURRENT_SOURCE_DIR}/tmdb/src/CMakeLists.txt")
+
+# include backend test framework
+include("${CMAKE_CURRENT_SOURCE_DIR}/backend/CMakeLists.txt")
+
 
 # 生成SharedMemory_test测试
 # add_executable(Client shm_test.cpp)

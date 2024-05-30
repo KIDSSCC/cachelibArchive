@@ -7,19 +7,20 @@
 #define DISTRIBUTION_EXPONENTIAL 5
 
 #define UNIFIED_CACHE_POOL "ycsb_unified_pool"
-#define BACKEND TMDB
+#define BACKEND TmdbBackend
 // #define BACKEND MySQLBackend
 // #define BACKEND MongoDBBackend
 // #define BACKEND LevelDBBackend
 // #define BACKEND SQLiteBackend
 
-#define MAX_RECORDS 1000 // number of records in the database
-#define MAX_FIELDS 10 // number of fields in each record
-#define MAX_FIELD_SIZE 100 // size of each field (in chars)
-#define MAX_QUERIES 100000 // number of queries to execute
-#define QUERY_PROPORTION 0.98 // proportion of read queries, the rest are insert queries
+#define REMOTE_CACHE 0
+#define MAX_RECORDS 2097152 // number of records in the database
+#define MAX_FIELDS 1 // number of fields in each record
+#define MAX_FIELD_SIZE 1000 // size of each field (in chars)
+#define MAX_QUERIES 10000000 // number of queries to execute
+#define QUERY_PROPORTION 1 // proportion of read queries, the rest are insert queries
 
-#define DISTRIBUTION DISTRIBUTION_ZIPFIAN
+#define DISTRIBUTION DISTRIBUTION_UNIFORM
 
 #if DISTRIBUTION == DISTRIBUTION_ZIPFIAN
     #define ZIPFIAN_SKEW 0.99

@@ -64,7 +64,7 @@ private:
 public:
 	TailLatency(int k) : size(k) {}
 	void push(long long num){
-		if(max_heap.size()<size){
+		if(int(max_heap.size())<size){
 			max_heap.push(num);
 		}else{
 			if(num>max_heap.top()){

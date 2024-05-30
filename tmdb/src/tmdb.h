@@ -123,6 +123,7 @@ Describe the entire data storage structure:
 //#define DATLEN_MIN	   2	/* data byte, newline */
 //#define DATLEN_MAX	1024	/* arbitrary */
 
+#include <iostream>
 #include <string>
 #include <memory>
 

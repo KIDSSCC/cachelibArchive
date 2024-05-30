@@ -21,6 +21,7 @@
 #define NUM_SHARDS 64
 
 using namespace std;
+
 class CachelibClient
 {
 private:
@@ -69,4 +70,5 @@ public:
     int getPid(){return this->pid;};
     int getHit;
 };
+
 #endif

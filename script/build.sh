@@ -25,6 +25,7 @@ rm -rf *.tdi
 rm -rf *.res
 rm -rf *.log
 rm -rf /dev/shm/*
+rm -rf /SSDPath/nvmcache/*
 mkdir -p /home/md/SHMCachelib/Build
 cd /home/md/SHMCachelib/Build
 cmake $CMAKE_PARAMS ..

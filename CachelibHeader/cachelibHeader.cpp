@@ -6,15 +6,15 @@ namespace cachelib_examples {
 
 std::unique_ptr<Cache> gCache_;
 PoolId defaultPool_;
-size_t cacheSize = (size_t)45 * 1024 * 1024 * 1024 + (size_t)4 * 1024 * 1024;
-size_t poolSize = (size_t)21 * 1024 * 1024 * 1024 + (size_t)0 * 1024 * 1024;
+size_t cacheSize = (size_t)12 * 1024 * 1024 * 1024 + (size_t)4 * 1024 * 1024;
+size_t poolSize = (size_t)6 * 1024 * 1024 * 1024 + (size_t)0 * 1024 * 1024;
 
 size_t defaultPoolSize = (size_t)120 * 1024 * 1024 + (size_t)0 * 1024 * 1024;
 
 
 NavyConfig getNvmConfig(const std::string& cacheDir){
 	NavyConfig config{};
-	config.setSimpleFile(cacheDir + "/navy", 200 * 1024ULL * 1024ULL);
+	config.setSimpleFile(cacheDir + "/navy", 6 * 1024ULL * 1024ULL * 1024ULL);
 	config.setBlockSize(4096);
 	config.setDeviceMetadataSize(4 * 1024 * 1024);
 	config.setNavyReqOrderingShards(10);
@@ -36,11 +36,11 @@ void cacheConfigure(CacheConfig& config)
     config.enablePoolResizing(std::make_shared<RebalanceStrategy>(),std::chrono::milliseconds{1}, poolResizeSlabsPerIter);
 
     //nvm config
-    std::string cacheDir_ = folly::sformat("nvmcache");
+    std::string cacheDir_ = folly::sformat("/SSDPath/nvmcache");
     cachelib::util::makeDir(cacheDir_);
     Cache::NvmCacheConfig nvmConfig;
     nvmConfig.navyConfig = getNvmConfig(cacheDir_);
-    //config.enableNvmCache(nvmConfig);
+    config.enableNvmCache(nvmConfig);
     config.validate();   
 }
 

@@ -18,6 +18,7 @@
 #include "cachelibHeader.h"
 #include "shm_util.h"
 
+//#define CACHE_HIT
 #define MAX_WAIT 100000000
 #define SIZE_CONV ((size_t)512 * 1024 * 1024)
 using namespace std;
@@ -128,17 +129,15 @@ void sharedMemCtl(string appName, int no, CacheHitStatistics* chs)
     	int waitCount=0;
 
         //try_wait() within a certain number of times or wait()
-	while(sem_trywait(semaphore)!=0)
-	{
-		//can't get semaphore
-		if(waitCount>MAX_WAIT)
-		{
-			cout<<"begin sleep\n";
-			sem_wait(semaphore);
-			break;
+		while(sem_trywait(semaphore)!=0){
+			//can't get semaphore
+			if(waitCount>MAX_WAIT){
+				cout<<"begin sleep\n";
+				sem_wait(semaphore);
+				break;
+			}
+			waitCount++;
 		}
-		waitCount++;
-	}
         //while(sem_trywait(semaphore)!=0);
         //sem_wait(semaphore);
         shm_stru *getMessage = static_cast<shm_stru*>(shared_memory);
@@ -154,11 +153,13 @@ void sharedMemCtl(string appName, int no, CacheHitStatistics* chs)
             case SIG_GET:
                 //get操作
                 getValue=get_(getMessage->key);
-		while(chs->spinlockForRate.test(memory_order_acquire));
-		chs->totalGet[no]++;
-		if(getValue != ""){
-			chs->hitGet[no]++;
-		}
+#ifdef CACHE_HIT
+				while(chs->spinlockForRate.test(memory_order_acquire));
+				chs->totalGet[no]++;
+				if(getValue != ""){
+					chs->hitGet[no]++;
+				}
+#endif
                 strcpy(getMessage->value,getValue.c_str());
                 //cout<<"get operation---key is: "<<getMessage->key<<" and value is: "<<getMessage->value<<endl;
                 sem_post(semaphore_GetBack);
@@ -167,45 +168,44 @@ void sharedMemCtl(string appName, int no, CacheHitStatistics* chs)
                 //del操作
                 del_(getMessage->key);
                 sem_post(semaphore_Server);
-	    case SIG_CLOSE:
-		sem_post(semaphore_Server);
-		while(slockForRecord.test_and_set(memory_order_acquire));
-		poolRecord[chs->poolName].first--;
-		slockForRecord.clear(memory_order_release);
+	    	case SIG_CLOSE:
+				sem_post(semaphore_Server);
+				while(slockForRecord.test_and_set(memory_order_acquire));
+				poolRecord[chs->poolName].first--;
+				slockForRecord.clear(memory_order_release);
 
-		available = false;
-		break;
-
+				available = false;
+				break;
             default:
                 break;
         }
-	//if(!chs->spinlock.test_and_set(memory_order_acquire)){
-	if(no == 0){
-		gettimeofday(&(chs->endTime), NULL);
-		if(getUsedTime(chs->startTime, chs->endTime)>5){
-			//cout<<"name is: "<<localAppName<<" and time is: "<<getUsedTime(chs->startTime, chs->endTime)<<endl;
-			while(chs->spinlockForRate.test_and_set(memory_order_acquire));
-			double t_totalGet = 0;
-			double t_totalHit = 0;
-			for(int i = 0; i<chs->totalGet.size(); i++){
-				t_totalGet += chs->totalGet[i];
-				chs->totalGet[i] = 0;
-				t_totalHit += chs->hitGet[i];
-				chs->hitGet[i] = 0;
+#ifdef CACHE_HIT
+		if(no == 0){
+			gettimeofday(&(chs->endTime), NULL);
+			if(getUsedTime(chs->startTime, chs->endTime)>5){
+				//cout<<"name is: "<<localAppName<<" and time is: "<<getUsedTime(chs->startTime, chs->endTime)<<endl;
+				while(chs->spinlockForRate.test_and_set(memory_order_acquire));
+				double t_totalGet = 0;
+				double t_totalHit = 0;
+				for(int i = 0; i<chs->totalGet.size(); i++){
+					t_totalGet += chs->totalGet[i];
+					chs->totalGet[i] = 0;
+					t_totalHit += chs->hitGet[i];
+					chs->hitGet[i] = 0;
+				}
+				chs->spinlockForRate.clear(memory_order_release);
+				ofstream logFile(chs->logFileName, ios::app);
+				if(logFile.is_open()){
+					//string logInfo = "totalGet is: " + to_string(t_totalGet) + " totalHit is: " + to_string(t_totalHit) +  " Cache Hit Rate: " + to_string(t_totalHit/t_totalGet);
+					string logInfo = "Cache Hit Rate: " + to_string(t_totalHit/t_totalGet);
+					logFile<<logInfo<<endl;
+					logFile.close();
+				}
+				gettimeofday(&(chs->startTime), NULL);
 			}
-			chs->spinlockForRate.clear(memory_order_release);
-			ofstream logFile(chs->logFileName, ios::app);
-			if(logFile.is_open()){
-				//string logInfo = "totalGet is: " + to_string(t_totalGet) + " totalHit is: " + to_string(t_totalHit) +  " Cache Hit Rate: " + to_string(t_totalHit/t_totalGet);
-				string logInfo = "Cache Hit Rate: " + to_string(t_totalHit/t_totalGet);
-				logFile<<logInfo<<endl;
-				logFile.close();
-			}
-			gettimeofday(&(chs->startTime), NULL);
+			chs->spinlock.clear(memory_order_release);
 		}
-		chs->spinlock.clear(memory_order_release);
-		
-	}
+#endif
 	
     }
 	munmap(shared_memory, SHARED_MEMORY_SIZE);

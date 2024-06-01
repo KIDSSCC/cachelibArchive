@@ -8,7 +8,7 @@
 
 #define TMDB_TABLE_PREFIX "tmdb_1"
 
-class TmdbBackend : public Backend{
+class TmdbBackend : public Backend {
 public:
     TmdbBackend(int thread_id);
     ~TmdbBackend();
@@ -18,6 +18,6 @@ public:
     bool clean_up();
 
 private:
-    string disk_name;
+    std::string disk_name;
     TDB* db;
-}
+};

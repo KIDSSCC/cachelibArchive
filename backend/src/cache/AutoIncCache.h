@@ -5,7 +5,6 @@
 #include <queue>
 #include <unordered_map>
 #include "common.h"
-
 class AutoIncCache
 {
 private:

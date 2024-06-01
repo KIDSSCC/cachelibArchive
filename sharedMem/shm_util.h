@@ -83,7 +83,7 @@ public:
 		gettimeofday(&(this->startTime), NULL);
 	};
 	void adjustSize(int nSize){
-		while(totalGet.size()<nSize+1){
+		while(int(totalGet.size())<nSize+1){
 			totalGet.push_back(0);	
 			hitGet.push_back(0);
 		}

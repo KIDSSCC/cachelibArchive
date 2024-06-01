@@ -31,7 +31,6 @@ private:
     sql::mysql::MySQL_Driver* driver;
     std::unique_ptr<sql::Connection> conn;
     std::unique_ptr<sql::Statement> stmt;
-    std::unique_ptr<sql::PreparedStatement> insert_stmt;
     std::string table_name = MYSQL_TABLE_PREFIX "_default";
 
     static std::mutex mtx;

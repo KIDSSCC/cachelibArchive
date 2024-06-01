@@ -22,7 +22,6 @@ public:
 private:
     std::string db_path = SQLITE_DIR "/db.db";
     sqlite3* db;
-    sqlite3_stmt* insert_stmt;
     std::string table_name = SQLITE_TABLE_PREFIX "_default";
 
     static std::mutex mtx;

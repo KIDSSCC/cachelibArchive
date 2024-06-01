@@ -21,9 +21,9 @@ MongoDBBackend::~MongoDBBackend() {
 bool MongoDBBackend::create_database() {
     try {
         collection.drop(); // Ensure a clean state if exists
-        bsoncxx::builder::basic::document index_builder{};
-        index_builder.append(bsoncxx::builder::basic::kvp("ycsb_key", 1));
-        collection.create_index(index_builder.view(), mongocxx::options::index{}.unique(true));
+        // bsoncxx::builder::basic::document index_builder{};
+        // index_builder.append(bsoncxx::builder::basic::kvp("ycsb_key", 1));
+        // collection.create_index(index_builder.view(), mongocxx::options::index{}.unique(true));
         return true;
     } catch (const mongocxx::exception& e) {
         std::cerr << "MongoDB create database error: " << e.what() << std::endl;
@@ -32,24 +32,26 @@ bool MongoDBBackend::create_database() {
 }
 
 bool MongoDBBackend::read_record(int key, std::vector<std::string>& results) {
-    if (cache_enabled) {
-        std::string json = cache.get_(std::to_string(key));
-        if (json != "") {
-            auto view = bsoncxx::from_json(json);
-            for (int i = 1; i <= MAX_FIELDS; i++) {
-                std::string field_name = "field" + std::to_string(i);
-                if (view[field_name] && view[field_name].type() == bsoncxx::type::k_utf8) {
-                    results.push_back(view[field_name].get_string().value.to_string());
-                }
-            }
-            hit_count++;
-            return true;
-        }
-    }
-
     try {
         bsoncxx::builder::basic::document filter_builder{};
-        filter_builder.append(bsoncxx::builder::basic::kvp("ycsb_key", key));
+        filter_builder.append(bsoncxx::builder::basic::kvp("_id", key));
+
+        auto cache_key = bsoncxx::to_json(filter_builder.view());
+
+        if (cache_enabled) {
+            std::string json = cache.get_(cache_key);
+            if (json != "") {
+                auto view = bsoncxx::from_json(json);
+                for (int i = 1; i <= MAX_FIELDS; i++) {
+                    std::string field_name = "field" + std::to_string(i);
+                    if (view[field_name] && view[field_name].type() == bsoncxx::type::k_utf8) {
+                        results.push_back(view[field_name].get_string().value.to_string());
+                    }
+                }
+                hit_count++;
+                return true;
+            }
+        }
 
         auto doc = collection.find_one(filter_builder.view());
         if (doc) {
@@ -61,7 +63,7 @@ bool MongoDBBackend::read_record(int key, std::vector<std::string>& results) {
                 }
             }
             if (cache_enabled) {
-                if (!cache.set_(std::to_string(key), bsoncxx::to_json(view))) {
+                if (!cache.set_(cache_key, bsoncxx::to_json(view))) {
                     std::cout << "MongoDBBackend: cache set failed" << std::endl;
                 }
             }
@@ -77,18 +79,14 @@ bool MongoDBBackend::read_record(int key, std::vector<std::string>& results) {
 bool MongoDBBackend::insert_record(int key, std::vector<std::string>& values) {
     try {
         bsoncxx::builder::basic::document document_builder{};
-        document_builder.append(bsoncxx::builder::basic::kvp("ycsb_key", key));
+        document_builder.append(bsoncxx::builder::basic::kvp("_id", key));
 
         for (size_t i = 0; i < values.size(); i++) {
             document_builder.append(bsoncxx::builder::basic::kvp("field" + std::to_string(i+1), values[i]));
         }
         collection.insert_one(document_builder.view());
 
-        if (cache_enabled) {
-            if (!cache.set_(std::to_string(key), bsoncxx::to_json(document_builder.view()))) {
-                std::cout << "MongoDBBackend: cache set failed" << std::endl;
-            }
-        }
+        cache.invalidate_all_();
 
         return true;
     } catch (const mongocxx::exception& e) {
@@ -102,7 +100,7 @@ bool MongoDBBackend::clean_up() {
     try {
         bsoncxx::builder::basic::document filter_builder{};
         filter_builder.append(bsoncxx::builder
-            ::basic::kvp("ycsb_key", bsoncxx::builder::basic::make_document(bsoncxx::builder::basic::kvp("$gte", MAX_RECORDS)))
+            ::basic::kvp("_id", bsoncxx::builder::basic::make_document(bsoncxx::builder::basic::kvp("$gte", MAX_RECORDS)))
         );
         collection.delete_many(filter_builder.view());
         return true;

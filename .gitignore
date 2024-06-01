@@ -9,5 +9,6 @@ build
 /test.sql
 /leveldb
 /sqlite
+/executefile
 
 startup.sh

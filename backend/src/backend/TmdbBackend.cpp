@@ -26,6 +26,9 @@ bool TmdbBackend::create_database() {
 }
 
 bool TmdbBackend::insert_record(int key, std::vector<std::string>& values) {
+    if(cache_enabled){
+        cache.set_(std::to_string(key), values[0]);
+    }
     tdb_store(db, std::to_string(key).c_str(), values[0].c_str(), TDB_INSERT);
     return true;
 }

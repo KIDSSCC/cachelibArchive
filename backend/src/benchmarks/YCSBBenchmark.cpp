@@ -119,6 +119,8 @@ bool YCSBBenchmark::insert_record(int key, std::vector<std::string>& values) {
 }
 
 bool YCSBBenchmark::is_end() {
+    if(max_query==0)
+        return false;
     return current_query >= max_query;
 }
 

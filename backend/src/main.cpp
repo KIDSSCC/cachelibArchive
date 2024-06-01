@@ -57,11 +57,15 @@ int main(int argc, char* argv[]) {
 
     if (do_prepare) {
         BACKEND backend(0); // therad_id = 0 for same table across threads
+        //kidsscc:write to cache in prepare phase
+        if(cache_enabled){
+            backend.enable_cache(unified_cache);
+        }
         YCSBBenchmark benchmark(backend);
         benchmark.prepare();
         std::cout << "Preparation done, " << g_next_insert_key << " records inserted." << std::endl;
     }
-    if (do_run) {
+    while (do_run) {
         g_next_insert_key = MAX_RECORDS;
         std::vector<std::thread> threads;
         for (int i = 0; i < num_threads; i++) {
@@ -71,7 +75,6 @@ int main(int argc, char* argv[]) {
 
                 BACKEND backend(0);
                 if (cache_enabled) {
-                    std::cout<<"enable cache\n";
                     backend.enable_cache(unified_cache);
                 }
                 
@@ -119,6 +122,12 @@ int main(int argc, char* argv[]) {
         std::cout << "Total 50th percentile: " << total_percentile_50 << " ns" << std::endl;
         double total_hitrate = (double) total_hit_count / (double) total_records_executed;
         std::cout << "Total Hitrate: " << total_hitrate << std::endl;
+        
+        total_throughput = 0;
+        total_hit_count = 0;
+        total_records_executed = 0;
+        total_latencies.clear();
+        total_latencies.shrink_to_fit();
     }
 
     return 0;

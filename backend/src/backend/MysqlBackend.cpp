@@ -44,12 +44,14 @@ bool MySQLBackend::create_database() {
     stmt->execute("SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0;");
     stmt->execute("SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0;");
     stmt->execute("DROP TABLE IF EXISTS " + table_name + ";");
-    stmt->execute("CREATE TABLE " + table_name + " (ycsb_key int PRIMARY KEY, field1 varchar(100), field2 varchar(100), field3 varchar(100), field4 varchar(100), field5 varchar(100), field6 varchar(100), field7 varchar(100), field8 varchar(100), field9 varchar(100), field10 varchar(100));");
+    std::string create_sql = "CREATE TABLE " + table_name + " (ycsb_key int PRIMARY KEY";
+    for (int i = 1; i <= MAX_FIELDS; i++) {
+        create_sql += ", field" + std::to_string(i) + " varchar(" + std::to_string(MAX_FIELD_SIZE) + ")";
+    }
+    create_sql += ");";
+    stmt->execute(create_sql);
     stmt->execute("SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS;");
     stmt->execute("SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS;");
-    insert_stmt = std::unique_ptr<sql::PreparedStatement>(
-            conn->prepareStatement("INSERT INTO " + table_name + " (ycsb_key, field1, field2, field3, field4, field5, field6, field7, field8, field9, field10) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-        );
     return true;
 }
 
@@ -79,6 +81,7 @@ bool MySQLBackend::read_record(int key, std::vector<std::string>& results) {
 }
 
 bool MySQLBackend::insert_record(int key, std::vector<std::string>& values) {
+    cache.invalidate_all_();
     return execute_update(generate_insert_sql(key, values));
 }
 
@@ -98,7 +101,7 @@ std::string MySQLBackend::generate_read_sql(int key) {
 }
 
 std::string MySQLBackend::generate_insert_sql(int key, std::vector<std::string>& values) {
-    std::string sql = "INSERT INTO " + table_name + " (ycsb_key, field1, field2, field3, field4, field5, field6, field7, field8, field9, field10) VALUES (" + std::to_string(key);
+    std::string sql = "INSERT INTO " + table_name + " VALUES (" + std::to_string(key);
     for (auto& value : values) {
         sql += ", '" + value + "'";
     }
@@ -111,4 +114,3 @@ bool MySQLBackend::clean_up() {
     execute_update("DELETE FROM " + table_name + " WHERE ycsb_key >= " + std::to_string(MAX_RECORDS));
     return true;
 }
-

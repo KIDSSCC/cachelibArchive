@@ -62,7 +62,7 @@ bool YCSBBenchmark::step() {
                 sequential_counter = 0;
             }
         #elif DISTRIBUTION == DISTRIBUTION_HOTSPOT
-            int key = hotspot_distrib(generator) % max_records;
+            int key = int(hotspot_distrib(generator)) % max_records;
         #elif DISTRIBUTION == DISTRIBUTION_EXPONENTIAL
             int key = int(exponential_distrib(generator)) % max_records; // its not precise but it works.
         #endif

@@ -32,6 +32,7 @@ void CachelibClient::prepare_shm(string appName)
     //打开共享内存
     do
     {
+        //name operating-flag mode
         this->shm_fd = shm_open(appName.c_str(), O_RDWR, 0666);
     } while (this->shm_fd == -1);
     // 将共享内存映射到进程的地址空间
@@ -41,7 +42,7 @@ void CachelibClient::prepare_shm(string appName)
         perror("Error mapping shared memory");
         exit(EXIT_FAILURE);
     }
-    //打开信号量
+    //打开信号量， 有名信号量可以在不同进程间共享
     string sem_server=string(appName)+"_Server";
     string sem_getback=string(appName)+"_getback";
     do{
@@ -102,8 +103,6 @@ int CachelibClient::addpool(string poolName)
 	this->prefix = poolName + "_";
 	prepare_shm(shmId);
 	return this->pid;
-
-
 
 }
 
@@ -166,12 +165,12 @@ bool CachelibClient::delKV(string key)
     //锁资源
     while(sem_trywait(this->semaphore_Server)!=0);
     //sem_wait(this->semaphore_Server);
-    //准备要存入共享内存的数据
+    //准备要存入共享内存的数据-> 删除吧？
     shm_stru* message=static_cast<shm_stru*>(this->shared_memory);
     message->ctrl=2;
     memset(message->key,0,sizeof(message->key));
     memset(message->value,0,sizeof(message->value));
-    strcpy(message->key,(this->prefix+key).c_str());
+    strcpy(message->key,(this->prefix+key).c_str());//？
     //释放资源
     sem_post(this->semaphore);
     return true;

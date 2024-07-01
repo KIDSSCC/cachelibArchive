@@ -148,7 +148,7 @@ int _db_read_test(int total, char *df){
 
 int kidsscc_db_insert_test(int total,char *df)
 {
-	char mode[]="c";
+	char mode[]="c";// create/truncate
 	TDB *db = tdb_open(df, mode);
 	if ( !db )
 	{
@@ -166,7 +166,7 @@ int kidsscc_db_insert_test(int total,char *df)
 		string value(1023,char('A'+i%26));
 		int s=tdb_store(db,key.c_str(),value.c_str(),TDB_INSERT);
 		if(s==TDB_SUCCESS)
-			success++;
+			++success;
 	}
 	gettimeofday(&end, NULL);
 	double start_seconds = timeval_to_seconds(start);

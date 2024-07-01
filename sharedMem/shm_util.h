@@ -60,7 +60,7 @@ struct m_addpool_c
 //缓存操作结构
 struct shm_stru
 {
-    int ctrl;
+    int ctrl;// set/get/delete
     int pid;
     char shmId[SHM_ID_SIZE];
     char key[SHM_KEY_SIZE];

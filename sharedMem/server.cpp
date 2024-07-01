@@ -38,6 +38,7 @@ double getUsedTime(const timeval& st,const timeval& en)
 	double endTime=timeval_to_seconds(en);
 	return endTime-startTime;
 }
+//获取所有内存池和大小信息
 map<string, uint64_t> getCacheStats()
 {
 	map<string, uint64_t> res;
@@ -51,12 +52,12 @@ map<string, uint64_t> getCacheStats()
 	//cacheStats.printCacheStat();
 	return res;
 }
-
+//将每个内存池大小统一
 void executeNewConfig(string config){
 	istringstream iss(config);
 	string line,size;
 	getline(iss, line);
-	getline(iss, size);
+	getline(iss, size);//池大小
 	istringstream line_stream1(line);
 	istringstream line_stream2(size);
 	string token;
@@ -85,7 +86,7 @@ void executeNewConfig(string config){
 }
 
 
-
+//创建一片共享内存并且对键值对执行对应set/get/del操作。
 void sharedMemCtl(string appName, int no, CacheHitStatistics* chs)
 {
     int SHARED_MEMORY_SIZE = sizeof(shm_stru);
@@ -164,10 +165,11 @@ void sharedMemCtl(string appName, int no, CacheHitStatistics* chs)
                 //cout<<"get operation---key is: "<<getMessage->key<<" and value is: "<<getMessage->value<<endl;
                 sem_post(semaphore_GetBack);
                 break;
-            case SIG_DEL:
+            case SIG_DEL://break
                 //del操作
                 del_(getMessage->key);
                 sem_post(semaphore_Server);
+				break;
 	    	case SIG_CLOSE:
 				sem_post(semaphore_Server);
 				while(slockForRecord.test_and_set(memory_order_acquire));
@@ -220,6 +222,7 @@ void sharedMemCtl(string appName, int no, CacheHitStatistics* chs)
 	return;
 }
 
+//创建监听端口，根据监听信息对缓存池大小进行设置/打印
 void listen_addpool()
 {
 	int server_socket = socket(AF_INET, SOCK_STREAM, 0);
@@ -270,7 +273,7 @@ void listen_addpool()
 			//for multithread
 			int newShmId;
 			auto it = poolRecord.find(poolName);
-			if(it == poolRecord.end()||it->second.first==0){
+			if(it == poolRecord.end()||it->second.first==0){//2.1是？
 				//new cache pool
 				while(slockForRecord.test_and_set(memory_order_acquire));
 				poolRecord[poolName] = make_pair(1, 0);

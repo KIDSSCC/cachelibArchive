@@ -37,7 +37,7 @@ include("${CMAKE_CURRENT_SOURCE_DIR}/backend/CMakeLists.txt")
 
 
 # 生成SharedMemory_test测试
-# add_executable(Client shm_test.cpp)
-# target_link_libraries(Client 
-#   ClientAPI
-# )
+#add_executable(Client shm_test.cpp)
+#target_link_libraries(Client 
+#  ClientAPI
+#)

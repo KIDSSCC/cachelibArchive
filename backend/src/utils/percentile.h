@@ -24,3 +24,18 @@ inline T percentile(const std::vector<T>& latencies, double percentile)
 
     return sorted[lower] + (sorted[upper] - sorted[lower]) * (index - lower);
 }
+
+template <typename T>
+inline T average(const std::vector<T>& latencies)
+{
+    if (latencies.empty())
+    {
+        return 0;
+    }
+    T average_latency = 0;
+    for(const auto& value: latencies)
+    {
+        average_latency +=value;
+    }
+    return average_latency/latencies.size();
+}

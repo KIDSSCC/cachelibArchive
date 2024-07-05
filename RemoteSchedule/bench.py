@@ -4,6 +4,7 @@ import threading
 import time
 import os
 import pickle
+from resource_management import set_cache_size, set_cpu_cores, set_bandwidth, clear_groups
 
 
 host = '127.0.0.1'
@@ -42,25 +43,24 @@ def get_pool_stats():
 set pool stat
 '''
 def set_pool_stats(new_config):
-    # link the target program
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.connect((host, port))
-
-    serialized_data = '\n'.join([' '.join(map(str, row)) for row in new_config])
-    serialized_data = 'S:' + serialized_data
-    sock.sendall(serialized_data.encode())
-    sock.close()
+    set_cache_size(new_config[0], new_config[2])
+    set_cpu_cores(new_config[1], new_config[3])
+    set_bandwidth(new_config[1], new_config[4])
+    
 
     
 '''
 get the last line from a file
 '''
 def get_last_line(fileName):
-    with open(fileName, 'rb') as file:
-        file.seek(-2,2)
-        while file.read(1)!=b'\n':
-            file.seek(-2, 1)
-        return file.readline().decode().strip()
+    try:
+        with open(fileName, 'rb') as file:
+            file.seek(-2,2)
+            while file.read(1)!=b'\n':
+                file.seek(-2, 1)
+            return file.readline().decode().strip()
+    except FileNotFoundError:
+        return ''
 
 
 '''
@@ -95,10 +95,15 @@ construct all partitions
 '''
 def get_all_partitions():
     all_partitions = []
-    for i in range(51):
-        all_partitions.append([i])
+    # for i in range(0, 97, 8):
+    #     for j in range(1, 5, 1):
+    #         for k in range(1, 31, 3):
+    #             all_partitions.append([i, j, k])
+    # for i in range(80, 104, 8):
+    # for j in range(1, 5, 1):
+    for k in range(1, 31, 3):
+        all_partitions.append([96, 4, k])
     return all_partitions
-
 
 def print_1(line):
     fileName = 'global_record.log'
@@ -129,39 +134,46 @@ def execute_tmdb_run(wl):
         #if itea>2:
         #    break
         
-def capture_log(workloads):
-    itea = 1
-    latency_capture = 'latency_capture.log'
+def capture_log(pool_names, pids):
+    clear_groups()
+    # wait for prepare
+    prepare_file = 'tmdb_hotspot_1K_02prepare.log'
+    while not os.path.isfile(prepare_file):
+        time.sleep(5)
+    print('prepare finish')
 
-    all_partition = get_all_partitions()
-    for i in range(len(all_partition)):
-        set_pool_stats([workloads, all_partition[i]])
-        #time.sleep(20)
-        # write to file
-        for wl in workloads:
-            hitrate_file_name = wl + "_CacheHitRate.log"
-            latency_file_name = wl + "_performance.log"
-            message = 'adjust size to:' + str(all_partition[i]) + '\n'
-            #print(message)
-            with open(hitrate_file_name, 'a') as f:
-                f.write(message)
-            with open(latency_file_name, 'a') as f:
-                f.write(message)
-        time.sleep(180)
+    # begin to schedule
+    all_partitions = get_all_partitions()
+    for i in range(len(all_partitions)):
+        # wait for output
+        log_name = 'tmdb_hotspot_1K_02_latency.log'
+        last_line = get_last_line(log_name)
+        while last_line=='' or last_line.split()[1] != 'Hitrate:':
+            time.sleep(30)
+            last_line = get_last_line(log_name)
+
+        # set new config
+        curr_config = []
+        curr_config.append(pool_names)
+        curr_config.append(pids)
+        # cache size
+        curr_config.append([all_partitions[i][0], 96 - all_partitions[i][0]])
+        # cpu cores
+        curr_config.append([all_partitions[i][1], all_partitions[i][1]])
+        # IO bandwidth
+        curr_config.append([all_partitions[i][2], 30 - all_partitions[i][2]])
+        set_pool_stats(curr_config)
+        # write to log
         
-        '''
-        hitrates = []
-        for wl in workloads:
-            hitrate_log_name = wl + '_CacheHitRate.log'
-            hitrates.append(get_last_line(hitrate_log_name)[16:])
-        print_1(all_partition[i])
-        print_1(hitrates)
-        '''
+        message = 'adjust config to: ' + str(all_partitions[i]) + '\n'
+        print(message)
+        with open(log_name, 'a') as f:
+                f.write(message)
 
-        schedule = 'scheduleMangement/findOptimal_' + str(i+1) + '_' + str(len(all_partition)) + '.log'
+        os.makedirs('scheduleMangement/', exist_ok=True)
+        schedule = 'scheduleMangement/findOptimal_' + str(i+1) + '_' + str(len(all_partitions)) + '.log'
         file = open(schedule, 'w')
         file.close()
-    sig_end = 1
 
 
 def print_bytes(name, result):
@@ -171,43 +183,28 @@ def print_bytes(name, result):
     for line in text.splitlines():
         print_1('\t'+ line)
 
-
+def run_workload(name):
+    parent_path = '/home/md/SHMCachelib/executefile/'
+    name[0] = parent_path + name[0]
+    process = subprocess.Popen(name, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    return process
 
 if __name__ == '__main__':
     
-    workloads = ['uniform20G']
+    workload_1 = ['tmdb_sequential_1K', '--cache']
+    workload_2 = ['tmdb_hotspot_1K_02', '--cache']
     # start server
-    server_path = ['/home/md/SHMCachelib/Build/Server']
-    server_proc = subprocess.Popen(server_path, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
-    time.sleep(3)
+    # server_path = ['/home/md/SHMCachelib/Build/Server']
+    # server_proc = subprocess.Popen(server_path, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
+    # time.sleep(3)
 
+    # run background app
+    process_1 = run_workload(workload_1)
+    process_2 = run_workload(workload_2)
 
-    # load the origin data
-    print_1('-----Load Phase-----')
-    all_load_proc = []
-    for wl in workloads:
-        all_load_proc.append(execute_tmdb_load(wl))
-        time.sleep(0.2)
-    for wl, p in zip(workloads, all_load_proc):
-        stdout, stderr = p.communicate()
-        print_bytes(wl, stdout)
-
-    print_1('-----Run Phase-----')
-    all_run_thread = []
-    for wl in workloads:
-        all_run_thread.append(threading.Thread(target = execute_tmdb_run, args = (wl,)))
-        all_run_thread[-1].start()
-
-    capture_latency = threading.Thread(target = capture_log, args = (workloads,))
-    capture_latency.start()
-    capture_latency.join()
-    print_1('capture finished')
-    for t in all_run_thread:
-        t.join()
-    
-    # end server
-    server_proc.terminate()
-
-    #new_config = [['zipfian', 'uniform'], [2, 4]]
-    #set_pool_stats(new_config)
+    # resource_schedule
+    capture_log(['tmdb_hotspot_1K_02', 'tmdb_sequential_1K'], [process_2.pid, process_1.pid])
+    print('finish capture')
+    process_1.communicate()
+    process_2.communicate()
 

@@ -11,7 +11,9 @@ const int CHAR_SYMBOLS_LENGTH = sizeof(CHAR_SYMBOLS) - 1; // Subtract 1 to ignor
 const std::vector<int> FAST_MASKS = {1, 2, 4, 8, 16, 32, 64, 128, 256, 512};
 
 inline std::string randomFastString(std::mt19937& rng, size_t length) {
-    std::string result(length, ' '); // Initialize the string with the desired length
+    std::string result(length, 'A'); // Initialize the string with the desired length
+    //kidsscc:
+    return result;
     int numRounds = length / FAST_MASKS.size();
     size_t i = 0;
 

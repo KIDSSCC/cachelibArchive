@@ -1,8 +1,10 @@
 #include "YCSBBenchmark.h"
 #include <thread>
 
-YCSBBenchmark::YCSBBenchmark(Backend& backend)
+YCSBBenchmark::YCSBBenchmark(Backend& backend, unsigned int CURR_QUERY)
     : Benchmark(backend) { 
+        //kidsscc: reinitialize max_query
+        max_query = CURR_QUERY;
         name = "YCSB";
         generator = std::default_random_engine(std::time(0));
         #if DISTRIBUTION == DISTRIBUTION_ZIPFIAN
@@ -62,7 +64,7 @@ bool YCSBBenchmark::step() {
                 sequential_counter = 0;
             }
         #elif DISTRIBUTION == DISTRIBUTION_HOTSPOT
-            int key = hotspot_distrib(generator) % max_records;
+            int key = int(hotspot_distrib(generator)) % max_records;
         #elif DISTRIBUTION == DISTRIBUTION_EXPONENTIAL
             int key = int(exponential_distrib(generator)) % max_records; // its not precise but it works.
         #endif
@@ -119,6 +121,8 @@ bool YCSBBenchmark::insert_record(int key, std::vector<std::string>& values) {
 }
 
 bool YCSBBenchmark::is_end() {
+    if(max_query==0)
+        return false;
     return current_query >= max_query;
 }
 

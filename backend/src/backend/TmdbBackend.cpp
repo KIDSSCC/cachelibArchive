@@ -1,7 +1,7 @@
 #include "TmdbBackend.h"
 
 TmdbBackend::TmdbBackend(int thread_id):Backend(thread_id) {
-    disk_name = TMDB_TABLE_PREFIX;
+    disk_name = UNIFIED_CACHE_POOL;
     string idx_file_name = disk_name + ".tdi";
     string dat_file_name = disk_name + ".tdb";
     char mode[] = "w";
@@ -26,13 +26,20 @@ bool TmdbBackend::create_database() {
 }
 
 bool TmdbBackend::insert_record(int key, std::vector<std::string>& values) {
+    // std::cout<<"insert "<<key<<" -> "<<values[0]<<std::endl;
+    if(cache_enabled){
+        cache.set_(std::to_string(key), values[0]);
+    }
     tdb_store(db, std::to_string(key).c_str(), values[0].c_str(), TDB_INSERT);
     return true;
 }
 
 bool TmdbBackend::read_record(int key, std::vector<std::string>& results){
+    // std::string ans (1000000, 'A');
     if(cache_enabled) {
+        // std::cout<<"get key is: "<<key<<std::endl;
         std::string value = cache.get_(std::to_string(key));
+        // std::cout<<"receive value"<< value <<std::endl;
         if(value != ""){
             results.push_back(value);
             hit_count++;

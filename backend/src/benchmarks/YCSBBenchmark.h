@@ -13,7 +13,7 @@
 class YCSBBenchmark : public Benchmark
 {
 public:
-    YCSBBenchmark(Backend& backend);
+    YCSBBenchmark(Backend& backend, unsigned int CURR_QUERY = MAX_QUERIES);
     ~YCSBBenchmark() = default;
     bool create_database();
     bool load_database();

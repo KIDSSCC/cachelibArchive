@@ -10,5 +10,6 @@ build
 /leveldb
 /sqlite
 /executefile
+/data
 
 startup.sh

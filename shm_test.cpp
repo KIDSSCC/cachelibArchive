@@ -1,8 +1,9 @@
 #include <iostream>
+
 #include <vector>
 #include <time.h>
 
-#include "sharedMem/ClientAPI/clientAPI.h"
+#include "clientAPI.h"
 
 using namespace std;
 
@@ -73,12 +74,5 @@ void remoteTest(string appName)
 
 int main()
 {
-    // remoteTest("tmdb");
-    CachelibClient* client_1=new CachelibClient();
-    client_1->addpool("pool1");
-    CachelibClient* client_2=new CachelibClient();
-    client_2->addpool("pool2");
-    CachelibClient* client_3=new CachelibClient();
-    client_3->addpool("pool3");
-    
+    remoteTest("tmdb");
 }

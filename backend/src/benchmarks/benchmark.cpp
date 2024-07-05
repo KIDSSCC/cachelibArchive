@@ -15,7 +15,9 @@ void Benchmark::run() {
         auto start_step = std::chrono::high_resolution_clock::now();
         bool ret = step();
         auto end_step = std::chrono::high_resolution_clock::now();
-        latencies_ns.push_back(std::chrono::duration_cast<std::chrono::nanoseconds>(end_step - start_step).count());
+        // latencies_ns.push_back(std::chrono::duration_cast<std::chrono::nanoseconds>(end_step - start_step).count());
+        latencies_ns.push_back(std::chrono::duration_cast<std::chrono::microseconds>(end_step - start_step).count());
+
         if (!ret) {
             std::cout << "Benchmark: step failed" << std::endl;
             throw std::runtime_error("Benchmark: step failed");

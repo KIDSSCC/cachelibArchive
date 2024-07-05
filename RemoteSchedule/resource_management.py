@@ -60,8 +60,8 @@ def set_cpu_cores(procs, cores):
         allocated_cpu = ','.join(cpu_to_set)
         #print(allocated_cpu)
 
-        command = 'taskset -cp ' + allocated_cpu + str(procs[i])
-        #print(command)
+        command = 'taskset -cp ' + allocated_cpu + ' ' + str(procs[i])
+        print(command)
 
         result = subprocess.run(command, shell=True, text=True, capture_output=True)
         if result.returncode == 0:
@@ -78,52 +78,53 @@ def set_bandwidth(procs, bandwidths):
         group_name = 'group_' + str(procs[i])
         # check the group exist
         check_command = 'cgget -g blkio:' + group_name
-        print(check_command)
+        # print(check_command)
         check_res = subprocess.run(check_command, shell=True, text=True, capture_output=True)
         if 'cannot' in check_res.stderr:
             # group non-exist,need to create new group
             #print('{} non-exist'.format(group_name))
             # create new group
             create_command = 'cgcreate -g blkio:' + group_name
-            print(create_command)
+            # print(create_command)
             subprocess.run(create_command, shell=True, text=True, capture_output=False)
             # add proc to group
             classify_command = 'cgclassify -g blkio:' + group_name + ' ' + str(procs[i])
-            print(classify_command)
+            # print(classify_command)
             subprocess.run(classify_command, shell=True, text=True, capture_output=False)
         # adjust the weigh
-        adjust_command = 'cgset -r blkio.throttle.write_bps_device="8:16 20971520" ' + group_name
-        print(adjust_command)
+        adjust_command = 'cgset -r blkio.throttle.read_bps_device="8:16 ' + str(bandwidths[i] * 10485760) + '" ' + group_name
+        # print(adjust_command)
         subprocess.run(adjust_command, shell=True, text=True, capture_output=False)
 
 
 if __name__ == '__main__':
     # delete all old group
     clear_groups()
+    set_cpu_cores([50358], [2])
 
-    write_test_1 = ['dd', 'if=/dev/zero', 'of=/home/md/workloadData/testfile_1', 'bs=1G', 'count=5', 'oflag=direct']
-    write_test_2 = ['dd', 'if=/dev/zero', 'of=/home/md/workloadData/testfile_2', 'bs=1G', 'count=5', 'oflag=direct']
-    write_test_3 = ['dd', 'if=/dev/zero', 'of=/home/md/workloadData/testfile_3', 'bs=1G', 'count=5', 'oflag=direct']
-    read_test_1 = ['dd', 'if=/home/md/workloadData/testfile_1', 'of=/dev/null', 'bs=1G', 'count=5', 'iflag=direct']
-    read_test_2 = ['dd', 'if=/home/md/workloadData/testfile_2', 'of=/dev/null', 'bs=1G', 'count=5', 'iflag=direct']
-    read_test_3 = ['dd', 'if=/home/md/workloadData/testfile_3', 'of=/dev/null', 'bs=1G', 'count=5', 'iflag=direct']
-    process_1 = subprocess.Popen(read_test_1, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    pid_1 = process_1.pid
-    process_2 = subprocess.Popen(read_test_2, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    pid_2 = process_2.pid
-    process_3 = subprocess.Popen(read_test_3, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    pid_3 = process_3.pid
+    # write_test_1 = ['dd', 'if=/dev/zero', 'of=/home/md/workloadData/testfile_1', 'bs=1G', 'count=5', 'oflag=direct']
+    # write_test_2 = ['dd', 'if=/dev/zero', 'of=/home/md/workloadData/testfile_2', 'bs=1G', 'count=5', 'oflag=direct']
+    # write_test_3 = ['dd', 'if=/dev/zero', 'of=/home/md/workloadData/testfile_3', 'bs=1G', 'count=5', 'oflag=direct']
+    # read_test_1 = ['dd', 'if=/home/md/workloadData/testfile_1', 'of=/dev/null', 'bs=1G', 'count=5', 'iflag=direct']
+    # read_test_2 = ['dd', 'if=/home/md/workloadData/testfile_2', 'of=/dev/null', 'bs=1G', 'count=5', 'iflag=direct']
+    # read_test_3 = ['dd', 'if=/home/md/workloadData/testfile_3', 'of=/dev/null', 'bs=1G', 'count=5', 'iflag=direct']
+    # process_1 = subprocess.Popen(read_test_1, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    # pid_1 = process_1.pid
+    # process_2 = subprocess.Popen(read_test_2, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    # pid_2 = process_2.pid
+    # process_3 = subprocess.Popen(read_test_3, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    # pid_3 = process_3.pid
 
-    #procs = [pid_1, pid_2]
-    #bandwidths = [10, 90]
-    #set_bandwidth(procs, bandwidths)
+    # #procs = [pid_1, pid_2]
+    # #bandwidths = [10, 90]
+    # #set_bandwidth(procs, bandwidths)
 
-    stdout_1, stderr_1 = process_1.communicate()
-    stdout_2, stderr_2 = process_2.communicate()
-    stdout_3, stderr_3 = process_3.communicate()
-    print('stdout_1 is:', stdout_1)
-    print('stderr_1 is:', stderr_1)
-    print('stdout_2 is:', stdout_2)
-    print('stderr_2 is:', stderr_2)
-    print('stdout_3 is:', stdout_3)
-    print('stderr_3 is:', stderr_3)
+    # stdout_1, stderr_1 = process_1.communicate()
+    # stdout_2, stderr_2 = process_2.communicate()
+    # stdout_3, stderr_3 = process_3.communicate()
+    # print('stdout_1 is:', stdout_1)
+    # print('stderr_1 is:', stderr_1)
+    # print('stdout_2 is:', stdout_2)
+    # print('stderr_2 is:', stderr_2)
+    # print('stdout_3 is:', stdout_3)
+    # print('stderr_3 is:', stderr_3)

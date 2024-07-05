@@ -20,7 +20,7 @@
 
 //#define CACHE_HIT
 #define MAX_WAIT 100000000
-#define SIZE_CONV ((size_t)512 * 1024 * 1024)
+#define SIZE_CONV ((size_t)128 * 1024 * 1024)
 using namespace std;
 using namespace facebook::cachelib_examples;
 

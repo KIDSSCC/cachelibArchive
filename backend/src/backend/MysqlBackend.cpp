@@ -43,7 +43,8 @@ bool MySQLBackend::create_database() {
     */
     stmt->execute("SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0;");
     stmt->execute("SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0;");
-    stmt->execute("DROP TABLE IF EXISTS " + table_name + ";");
+    //kidsscc
+    // stmt->execute("DROP TABLE IF EXISTS " + table_name + ";");
     std::string create_sql = "CREATE TABLE " + table_name + " (ycsb_key int PRIMARY KEY";
     for (int i = 1; i <= MAX_FIELDS; i++) {
         create_sql += ", field" + std::to_string(i) + " varchar(" + std::to_string(MAX_FIELD_SIZE) + ")";
@@ -59,6 +60,7 @@ bool MySQLBackend::read_record(int key, std::vector<std::string>& results) {
     std::string sql = generate_read_sql(key);
     if (cache_enabled) {
         std::string value = cache.get_(sql);
+        // std::cout<<"get value is: "<<value<<std::endl;
         if (value != "") {
             results = unpack_values(value, MAX_FIELD_SIZE);
             hit_count++;
@@ -71,6 +73,7 @@ bool MySQLBackend::read_record(int key, std::vector<std::string>& results) {
             results.push_back(res->getString(i));
         }
         if (cache_enabled) {
+            // std::cout<<"key is: "<<sql<<"value is: "<<pack_values(results).length()<<std::endl;
             if (!cache.set_(sql, pack_values(results))) {
                 std::cout << "MySQLBackend: cache set failed" << std::endl;
             }

@@ -1,8 +1,10 @@
 #include "YCSBBenchmark.h"
 #include <thread>
 
-YCSBBenchmark::YCSBBenchmark(Backend& backend)
+YCSBBenchmark::YCSBBenchmark(Backend& backend, unsigned int CURR_QUERY)
     : Benchmark(backend) { 
+        //kidsscc: reinitialize max_query
+        max_query = CURR_QUERY;
         name = "YCSB";
         generator = std::default_random_engine(std::time(0));
         #if DISTRIBUTION == DISTRIBUTION_ZIPFIAN

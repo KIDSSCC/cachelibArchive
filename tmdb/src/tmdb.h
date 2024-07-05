@@ -104,7 +104,7 @@ Describe the entire data storage structure:
 
 #define TDB_MAX_HASH_BUCKET		655360		/* max hash bucket total */
 #define TDB_MAX_KEY_LEN			64			/* key string max byte length */
-#define TDB_MAX_RECORD_LEN		65536		/* max a record data length */
+#define TDB_MAX_RECORD_LEN		4194304		/* max a record data length */
 
 #define TDB_INDEX_HEADER_LEN	256			/* index file header length */
 #define TDB_DATA_HEADER_LEN		256			/* data file header length */

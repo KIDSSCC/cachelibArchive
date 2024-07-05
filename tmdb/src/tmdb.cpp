@@ -463,6 +463,8 @@ STATUS _db_find_and_lock(TDB *db, const char *key, int is_write) {
 	db->idxoff = key_ptr_pos;
 	db->datoff = key_record->data_ptr;
 
+	free(key_record);
+
 	//Row level lock
 	//is_write ? write_lock(db->idx_fd, key_ptr_pos, SEEK_SET, key_len) : read_lock(db->idx_fd, key_ptr_pos, SEEK_SET, key_len);
 
@@ -1123,7 +1125,10 @@ std::string tdb_fetch(TDB *db, const char *key){
 			return res;
 		//return strlen(res)==0?_db_fetch(db, key):res;
 	#endif
-	return _db_fetch(db, key);
+	char* ptr = _db_fetch(db, key);
+	std::string res(ptr);
+	free(ptr);
+	return res;
 }
 
 

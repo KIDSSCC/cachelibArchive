@@ -6,8 +6,8 @@ namespace cachelib_examples {
 
 std::unique_ptr<Cache> gCache_;
 PoolId defaultPool_;
-size_t cacheSize = (size_t)16 * 1024 * 1024 * 1024 + (size_t)4 * 1024 * 1024;
-size_t poolSize = (size_t)16 * 1024 * 1024 * 1024 + (size_t)0 * 1024 * 1024;
+size_t cacheSize = (size_t)12 * 1024 * 1024 * 1024 + (size_t)4 * 1024 * 1024;
+size_t poolSize = (size_t)6 * 1024 * 1024 * 1024 + (size_t)0 * 1024 * 1024;
 
 size_t defaultPoolSize = (size_t)120 * 1024 * 1024 + (size_t)0 * 1024 * 1024;
 
@@ -40,7 +40,7 @@ void cacheConfigure(CacheConfig& config)
     cachelib::util::makeDir(cacheDir_);
     Cache::NvmCacheConfig nvmConfig;
     nvmConfig.navyConfig = getNvmConfig(cacheDir_);
-    //config.enableNvmCache(nvmConfig);
+    config.enableNvmCache(nvmConfig);
     config.validate();   
 }
 

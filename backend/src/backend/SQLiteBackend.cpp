@@ -64,7 +64,7 @@ bool SQLiteBackend::read_record(int key, std::vector<std::string>& results) {
     }
     sqlite3_stmt* stmt = execute_query(sql);
     if (stmt && sqlite3_step(stmt) == SQLITE_ROW) {
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < MAX_FIELDS; i++) {
             results.push_back(reinterpret_cast<const char*>(sqlite3_column_text(stmt, i + 1)));
         }
         sqlite3_finalize(stmt);

@@ -31,5 +31,5 @@ cd /home/md/SHMCachelib/Build
 cmake $CMAKE_PARAMS ..
 make -j 4
 
-clear
+#clear
 echo "project construction completed"

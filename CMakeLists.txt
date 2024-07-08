@@ -8,9 +8,9 @@ message("-- Detecting C++ standard ${CMAKE_CXX_STANDARD}")
 find_package(cachelib CONFIG REQUIRED)
 
 # some paths
-set(CH_dir "${CMAKE_SOURCE_DIR}/clientserver/src/cachelibheader")
-set(CS_dir "${CMAKE_SOURCE_DIR}/clientserver/src/clientserver")
-set(CS_config "${CMAKE_SOURCE_DIR}/clientserver/src")
+set(CH_dir "${CMAKE_SOURCE_DIR}/clientserver/cachelibheader")
+set(CS_dir "${CMAKE_SOURCE_DIR}/clientserver/clientserver")
+set(CS_config "${CMAKE_SOURCE_DIR}/clientserver")
 
 # set cachelibheader library
 add_library(CachelibHeader STATIC "${CH_dir}/cachelibHeader.cpp")

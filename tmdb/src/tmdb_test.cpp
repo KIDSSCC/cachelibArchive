@@ -58,10 +58,6 @@ string prefix (1000, 'A');
  * @param char *df data file name
  */
 int _db_insert_test(int total, char *df){
-	
-	char n[16];
-	char *dat;
-	int i = 0;
 	int success = 0;
 	int s = 0;
 
@@ -76,23 +72,23 @@ int _db_insert_test(int total, char *df){
 		return 0;
 	}
 	
-	clock_t start, finish;   
+	clock_t start, end;   
 	double duration;   
 	start=clock();
 	
-	for (i=0; i<total; i++){
-		sprintf(n, "num%d", i);
+	for (int i=0; i<total; i++){
+		string key = "num_" + std::to_string(i);
 		string value(10,char('A'+i%26));
-		s = tdb_store(db, n, value.c_str(), TDB_INSERT);
+		s = tdb_store(db, key.c_str(), value.c_str(), TDB_INSERT);
 		if (TDB_SUCCESS == s){
+			std::cout<<"set: "<<key<<" --> "<<value<<std::endl;
 			success++;
 		}
 	}
 	tdb_close(db);
-	finish=clock();   
-	duration=(double)(finish-start)/CLOCKS_PER_SEC;   
+	end=clock();   
+	duration=(double)(end-start)/CLOCKS_PER_SEC;   
 	printf("db insert data test success: %d, used time: %fs\n", success, duration);
-
 	return success;
 }
 
@@ -102,11 +98,7 @@ int _db_insert_test(int total, char *df){
  * @param int total read total
  */
 int _db_read_test(int total, char *df){
-	char n[16];
-	string dat = NULL;
-	int i = 0;
 	int success = 0;
-	int s = 0;
 
 	if (total <= 0){
 		return 0;
@@ -123,24 +115,25 @@ int _db_read_test(int total, char *df){
 	std::mt19937 gen(rd());
 	std::uniform_int_distribution<int> dis(0,total-1);
 
-	clock_t start, finish;   
+	clock_t start, end;   
 	double duration;   
 	start=clock();
 
 	
-	for (i=0; i<total; i++){
+	for (int i=0; i<total; i++){
 		int num=dis(gen);
-		sprintf(n, "num%d", num);
+		string key = "num_" + std::to_string(num);
 		string value(10,char('A'+num%26));
-		dat = tdb_fetch(db, n);
-		if (dat == value){
+		string getValue = tdb_fetch(db, key.c_str());
+		std::cout<<"key is: "<<key<<" get value is: "<<getValue<<std::endl;
+		if (getValue == value){
 			success++;
 		}
 	}
 	tdb_close(db);
 
-	finish=clock();   
-	duration=(double)(finish-start)/CLOCKS_PER_SEC;   
+	end=clock();   
+	duration=(double)(end-start)/CLOCKS_PER_SEC;   
 	printf("db read data test success: %d, used time: %fs\n", success, duration);
 
 	return success;
@@ -848,6 +841,13 @@ int main(int argc,char*argv[]){
 	return 0;
 	*/
 
+	
+	char df[] = "tdb_data_test";
+	int total = 10;
+	_db_insert_test(total, df);
+	_db_read_test(total, df);
+	return 0;
+	
 
 	//insert&read test
 	#ifdef CACHELIB_LOCAL
@@ -878,20 +878,12 @@ int main(int argc,char*argv[]){
 	if(operationType == 1){
 		just_load(fileName, output_file);
 	}else if(operationType == 2){
-		//string loadFile = "/home/md/workloadData/uniform20G_load.txt";
-		//just_load(loadFile, output_file);
-		just_run_TL(fileName, output_file);
-		//traverse_data(fileName, output_file);
+		just_run(fileName, output_file);
+		// just_run_TL(fileName, output_file);
 	}else{
 		just_addPool(output_file);
 	}
-	//parallel_test(argc,argv);
-	/*
-	char df[] = "tdb_data_test";
-	int total = 10;
-	_db_insert_test(total, df);
-	_db_read_test(total, df);
-	*/
+	
 
 	#ifdef CACHELIB_LOCAL
 		facebook::cachelib_examples::destroyCache();

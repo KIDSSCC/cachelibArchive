@@ -18,7 +18,7 @@ find_package(Threads REQUIRED)
 find_package(PkgConfig REQUIRED)
 find_package(SQLite3 REQUIRED)
 pkg_search_module(LIBMONGOCXX REQUIRED libmongocxx)
-include_directories("${TD_dir}")
+
 
 # Set include directories using target_include_directories
 file(GLOB_RECURSE SOURCES ${CMAKE_CURRENT_LIST_DIR}/src/*.cpp)
@@ -29,6 +29,8 @@ target_include_directories(YCSB_CPP PRIVATE
     ${LIBMONGOCXX_INCLUDE_DIRS}
     ${CMAKE_CURRENT_LIST_DIR}/src
     /usr/include/cppconn # Consider verifying this path or find a package if possible
+    ${TD_dir}
+    ${CS_dir}
 )
 
 # Link libraries
@@ -40,6 +42,7 @@ target_link_libraries(YCSB_CPP
     Threads::Threads
     SQLite::SQLite3
     tmdb
+    ClientAPI
 )
 
 # Handle the address sanitizer specifically for Debug builds

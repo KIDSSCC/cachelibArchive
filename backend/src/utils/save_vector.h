@@ -4,7 +4,7 @@
 #include <cstdint>
 
 void save_vector_to_file(const std::vector<uint32_t>& data, const std::string& filename) {
-    std::ofstream out_file(filename, std::ios::binary);
+    std::ofstream out_file(filename + "_vector.log", std::ios::binary);
     if (!out_file) {
         std::cerr << "Could not open the file for writing!" << std::endl;
         return;

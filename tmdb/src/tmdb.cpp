@@ -24,7 +24,7 @@
 	宏定义KID_CACHELIB远程连接cachelib
 */
 #define KIDSSCC
-//#define KID_CACHELIB
+// #define KID_CACHELIB
 
 #ifdef KIDSSCC
 	#define err_dump(message) err_dump(const_cast<char*>(message))
@@ -1119,16 +1119,17 @@ std::string tdb_fetch(TDB *db, const char *key){
 		{
 			char* disk_res=_db_fetch(db, key);
 			db->client->setKV(key, disk_res);
-			return disk_res;
+			std::string diskres_str(disk_res);
+			free(disk_res);
+			return diskres_str;
 		}
 		else
 			return res;
-		//return strlen(res)==0?_db_fetch(db, key):res;
 	#endif
 	char* ptr = _db_fetch(db, key);
-	std::string res(ptr);
+	std::string ptr_str(ptr);
 	free(ptr);
-	return res;
+	return ptr_str;
 }
 
 

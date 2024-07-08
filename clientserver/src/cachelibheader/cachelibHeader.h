@@ -1,7 +1,3 @@
-/*
-    cachelib单独的接口库
-*/
-
 #ifndef CACHELIB_HEADER
 #define CACHELIB_HEADER
 
@@ -10,8 +6,10 @@
 #include "folly/init/Init.h"
 
 
+
 #include<string>
 #include<set>
+#include <config.h>
 
 namespace facebook {
 namespace cachelib_examples {
@@ -78,5 +76,3 @@ void resizePool(std::string poolName, size_t newSize);
 }
 
 #endif // CACHELIB_HEADER
-
-

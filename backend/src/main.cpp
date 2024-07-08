@@ -7,7 +7,6 @@
 #include "backend/TmdbBackend.h"
 #include "utils/percentile.h"
 #include "utils/save_vector.h"
-//#include "cache/clientAPI.h"
 #include "clientAPI.h"
 #include "config.h"
 #include <thread>
@@ -36,12 +35,12 @@ int main(int argc, char* argv[]) {
         } else if (arg == "--prepare") {
             do_run = false;
         } else if (arg == "--warmup") {
-            do_prepare = false;
+            // do_prepare = false;
             if (i + 1 < argc) {
                 warmup_times = std::stoi(argv[i + 1]);
             }
         } else if (arg == "--run") {
-            do_prepare = false;
+            // do_prepare = false;
             if (i + 1 < argc) {
                 run_times = std::stoi(argv[i + 1]);
             }
@@ -95,7 +94,9 @@ int main(int argc, char* argv[]) {
             threads.emplace_back([cache_enabled, i, 
                                 &total_throughput, &total_hit_count, &total_records_executed, 
                                 &total_latencies, &total_latencies_mutex, &unified_cache]() {
-
+                //for multithreads, may need to create cache client for every thread, utilizing multiple SHM to realize property
+                // CachelibClient cacheclient;
+                // cacheclient.addpool(UNIFIED_CACHE_POOL);
                 BACKEND backend(0);
                 if (cache_enabled) {
                     backend.enable_cache(unified_cache);
@@ -104,18 +105,20 @@ int main(int argc, char* argv[]) {
                 YCSBBenchmark benchmark(backend);
                 benchmark.run();
                 double throughput = (double) benchmark.records_executed / (double) benchmark.millis_elapsed * 1000;
-                std::cout << "Thread " << i << " Throughput: " << throughput << " records/s" << std::endl;
+                
                 std::vector<unsigned int> latencies = benchmark.latencies_ns;
                 unsigned int percentile_99 = percentile(latencies, 0.99);
                 unsigned int percentile_95 = percentile(latencies, 0.95);
                 unsigned int percentile_50 = percentile(latencies, 0.50);
-                std::cout << "Thread " << i << " 99th percentile: " << percentile_99 << " ns" << std::endl;
-                std::cout << "Thread " << i << " 95th percentile: " << percentile_95 << " ns" << std::endl;
-                std::cout << "Thread " << i << " 50th percentile: " << percentile_50 << " ns" << std::endl;
+
                 unsigned int hit_count = backend.hit_count;
                 unsigned int total_count = benchmark.records_executed;
                 double hitrate = (double) hit_count / (double) total_count;
-                std::cout << "Thread " << i << " Hitrate: " << hitrate << std::endl;
+                OUTPUT << "Thread " << i << " Hitrate: " << hitrate << std::endl;
+                OUTPUT << "Thread " << i << " Throughput: " << throughput << " records/s" << std::endl;
+                OUTPUT << "Thread " << i << " 99th percentile: " << percentile_99 << " ns" << std::endl;
+                OUTPUT << "Thread " << i << " 95th percentile: " << percentile_95 << " ns" << std::endl;
+                OUTPUT << "Thread " << i << " 50th percentile: " << percentile_50 << " ns" << std::endl;
 
                 // aggregate the results
                 total_throughput += throughput;
@@ -136,8 +139,6 @@ int main(int argc, char* argv[]) {
         BACKEND backend(0);
         backend.clean_up();
 
-        std::cout << "Total Throughput: " << total_throughput << " records/s" << std::endl;
-
         // save latencies for further inspection
         if (!profile_file.empty()) {
             save_vector_to_file(total_latencies, profile_file);
@@ -146,15 +147,16 @@ int main(int argc, char* argv[]) {
         unsigned int total_percentile_99 = percentile(total_latencies, 0.99);
         unsigned int total_percentile_95 = percentile(total_latencies, 0.95);
         unsigned int total_percentile_50 = percentile(total_latencies, 0.50);
-        std::cout << "Total 99th percentile: " << total_percentile_99 << " ns" << std::endl;
-        std::cout << "Total 95th percentile: " << total_percentile_95 << " ns" << std::endl;
-        std::cout << "Total 50th percentile: " << total_percentile_50 << " ns" << std::endl;
         double total_hitrate = (double) total_hit_count / (double) total_records_executed;
-        std::cout << "Total Hitrate: " << total_hitrate << std::endl;
+        OUTPUT << "Total Hitrate: " << total_hitrate << std::endl;
+        OUTPUT << "Total Throughput: " << total_throughput << " records/s" << std::endl;
+        OUTPUT << "Total 99th percentile: " << total_percentile_99 << " ns" << std::endl;
+        OUTPUT << "Total 95th percentile: " << total_percentile_95 << " ns" << std::endl;
+        OUTPUT << "Total 50th percentile: " << total_percentile_50 << " ns" << std::endl;
         
         if (total_times < run_times && !profile_file.empty()) {
             // save percentiles and hitrate to a file
-            std::ofstream out(profile_file + "_result.txt", std::ios::app);
+            std::ofstream out(profile_file + "_tailLatency.log", std::ios::app);
             out << total_percentile_99 << " " << total_percentile_95 << " " << total_percentile_50 << " " << total_hitrate << std::endl;
         }
 

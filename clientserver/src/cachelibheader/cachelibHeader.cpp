@@ -6,10 +6,10 @@ namespace cachelib_examples {
 
 std::unique_ptr<Cache> gCache_;
 PoolId defaultPool_;
-size_t cacheSize = (size_t)12 * 1024 * 1024 * 1024 + (size_t)4 * 1024 * 1024;
-size_t poolSize = (size_t)6 * 1024 * 1024 * 1024 + (size_t)0 * 1024 * 1024;
+size_t cacheSize = CACHE_SIZE + REDUNDARY_SIZE;
+size_t poolSize = POOL_SIZE;
 
-size_t defaultPoolSize = (size_t)120 * 1024 * 1024 + (size_t)0 * 1024 * 1024;
+size_t defaultPoolSize = DEFAULT_POOL_SIZE;
 
 
 NavyConfig getNvmConfig(const std::string& cacheDir){
@@ -40,7 +40,9 @@ void cacheConfigure(CacheConfig& config)
     cachelib::util::makeDir(cacheDir_);
     Cache::NvmCacheConfig nvmConfig;
     nvmConfig.navyConfig = getNvmConfig(cacheDir_);
-    config.enableNvmCache(nvmConfig);
+    #if HYBRID_CACHE
+        config.enableNvmCache(nvmConfig);
+    #endif
     config.validate();   
 }
 
@@ -50,8 +52,10 @@ void initializeCache()
     cacheConfigure(config);
     gCache_ = std::make_unique<Cache>(config);
     std::cout<<"Create Cache successfully\n";
-    //defaultPool_ = gCache_->addPool("default_",defaultPoolSize);
-    //std::cout<<"defaultPool_ is: "<<(int)defaultPool_<<std::endl;
+    #if CREATE_DEFAULT_POOL
+        defaultPool_ = gCache_->addPool("default_",defaultPoolSize);
+        std::cout<<"defaultPool_ is: "<<(int)defaultPool_<<std::endl;
+    #endif
 }
 
 void destroyCache()
@@ -62,7 +66,9 @@ void destroyCache()
 
 int addpool_(std::string poolName)
 {
-    //return 0;
+    #if CREATE_DEFAULT_POOL
+        return 0;
+    #endif
     cachelib::PoolId poolId = gCache_->getPoolId(poolName);
     if(poolId==-1){
         poolId = gCache_->addPool(poolName, poolSize);

@@ -598,7 +598,7 @@ void parallel_test(int argc,char*argv[])
 	char* output_file=nullptr;
 	int operationType = -1;
 	int o;
-	bool printLog = false;
+	// bool printLog = false;
 	while((o=getopt(argc,argv,"-i:o:lr"))!=-1)
 	{
 		switch(o)
@@ -608,7 +608,7 @@ void parallel_test(int argc,char*argv[])
 			case 'l':operationType = 1;break;
 			case 'r':
 				 operationType = 2;
-				 printLog = true;
+				//  printLog = true;
 				 break;
 			default:cout<<"wrong argument\n";break;
 		}

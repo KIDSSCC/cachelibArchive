@@ -84,8 +84,11 @@ int main(int argc, char* argv[]) {
         std::cout << "Preparation done, " << g_next_insert_key << " records inserted." << std::endl;
     }
 
-    int total_times = warmup_times + run_times;
 
+    int total_times = warmup_times + run_times;
+    do_run = total_times>0?true:do_run;
+    if(!do_run)
+        return 0;
     while (total_times--) {
         g_next_insert_key = MAX_RECORDS;
         std::vector<std::thread> threads;

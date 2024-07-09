@@ -65,7 +65,15 @@ char *substr( const char *s, int start_pos, int length, char *ret ){
 	if (length == 0){
 		length = str_len - start_pos;
 	}
-	start_pos = ( start_pos < 0 ? (str_len + start_pos) : ( start_pos==0 ? start_pos : start_pos-- ) );
+	//kidsscc:manage branch
+	if(start_pos < 0){
+		start_pos = str_len + start_pos;
+	}else if(start_pos == 0){
+		start_pos = start_pos;
+	}else{
+		start_pos--;
+	}
+	// start_pos = ( start_pos < 0 ? (str_len + start_pos) : ( start_pos==0 ? start_pos : start_pos-- ) );
 	end_pos = start_pos + length;
 
     for(i=start_pos, j=0; i<end_pos && j<=length; i++, j++){
@@ -247,7 +255,7 @@ int is_numeric( const char *s ){
 	int i = 0;
 	size_t len = strlen(s);
 	for ( ; isdigit(s[i]); i++ ) ;
-	return ( i==len ? 1 : 0 );
+	return ( (size_t)i==len ? 1 : 0 );
 }
 
 /**
@@ -255,11 +263,11 @@ int is_numeric( const char *s ){
  *
  */
 void getdate( char *s ){
-	#ifdef KIDSSCC
-		const char *wday[]={"Sun","Mon","Tue","Wed","Thu","Fri","Sat"};
-	#else
-		char *wday[]={"Sun","Mon","Tue","Wed","Thu","Fri","Sat"};
-	#endif
+	// #ifdef KIDSSCC
+	// 	const char *wday[]={"Sun","Mon","Tue","Wed","Thu","Fri","Sat"};
+	// #else
+	// 	char *wday[]={"Sun","Mon","Tue","Wed","Thu","Fri","Sat"};
+	// #endif
 	time_t timep;
 	struct tm *p;
 

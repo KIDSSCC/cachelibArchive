@@ -70,14 +70,14 @@ void executeNewConfig(string config){
 		poolSizes.push_back(num);
 	}
 	// first,shrinkle pool
-	for(int i=0;i<poolNames.size();i++){
+	for(int i=0;i<(int)poolNames.size();i++){
 		size_t currSize = getPoolSizeFromName(poolNames[i])/SIZE_CONV;
 		if(currSize>poolSizes[i]){
 			resizePool(poolNames[i], poolSizes[i] * SIZE_CONV);
 		}
 	}
 	// second, grow pool
-	for(int i=0;i<poolNames.size();i++){
+	for(int i=0;i<(int)poolNames.size();i++){
 		size_t currSize = getPoolSizeFromName(poolNames[i])/SIZE_CONV;
 		if(currSize<poolSizes[i]){
 			resizePool(poolNames[i], poolSizes[i] * SIZE_CONV);

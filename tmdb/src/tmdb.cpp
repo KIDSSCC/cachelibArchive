@@ -138,7 +138,7 @@ void p_key_record(struct tdb_key_record_t *key_record){
 TDB  *_db_open(const char *path, char *mode) {
     TDB  *db = NULL;
     int len = 0;
-    size_t i = 0;
+    // size_t i = 0;
 
     //Check open mode
     if (strcmp(mode, "r")==-1 && strcmp(mode, "c")==-1 && strcmp(mode, "w")==-1){
@@ -319,7 +319,7 @@ STATUS _db_create(TDB *db) {
     rewind(db->idx_fp);
     //Write index header record total
 	int zero = 0;
-	int i = 0;
+	// int i = 0;
     if ( fwrite(&zero, TDB_INT_SIZE, 1, db->idx_fp) != 1){
 		err_dump("_db_create: write index header record total fail");
 	}
@@ -374,7 +374,7 @@ TDBHASH _db_hash(TDB *db, const char *str) {
 STATUS _db_find_and_lock(TDB *db, const char *key, int is_write) {
 	int key_pos = 0;
 	off_t key_ptr_pos = 0; 
-	int key_max_pos = 0;
+	// int key_max_pos = 0;
 	int key_len = 0; 
 	int find = 0;
 	struct tdb_key_record_t *key_record = NULL;
@@ -392,7 +392,7 @@ STATUS _db_find_and_lock(TDB *db, const char *key, int is_write) {
 
 	//Find a key postion
 	key_pos = TDB_INDEX_HEADER_LEN + (db->hash * TDB_OFF_SIZE);
-	key_max_pos = TDB_INDEX_HEADER_LEN + (TDB_MAX_HASH_BUCKET * TDB_OFF_SIZE);
+	// key_max_pos = TDB_INDEX_HEADER_LEN + (TDB_MAX_HASH_BUCKET * TDB_OFF_SIZE);
 	key_len = sizeof(struct tdb_key_record_t);
 	fseek(db->idx_fp, key_pos, SEEK_SET);
 	if ( fread(&key_ptr_pos, TDB_OFF_SIZE, 1, db->idx_fp) != 1){
@@ -433,7 +433,11 @@ STATUS _db_find_and_lock(TDB *db, const char *key, int is_write) {
 	while (1) {
 		//Key record not exist
 		fseeko(db->idx_fp, key_ptr_pos, SEEK_SET);
-		fread(key_record, key_len, 1, db->idx_fp);
+		size_t result = fread(key_record, key_len, 1, db->idx_fp);
+		if (result != 1) {
+        	perror("Failed to read key record1");
+        	exit(EXIT_FAILURE);
+    	}
 		db->preidx = ftell(db->idx_fp);
 		if ( NULL == key_record || NULL == key_record->key ){
 			db->idxoff = key_ptr_pos;
@@ -633,7 +637,11 @@ STATUS	_db_store(TDB *db, const char *key, const char *value, int mode){
     key_len  = strlen(key);
 	key_record->flag = 0; //TDB_FLAG_NOR;
 	bzero(key_record->key, TDB_MAX_KEY_LEN);
-	strncpy(key_record->key, key, key_len);
+
+	memcpy(key_record->key, key, key_len);
+	// strncpy(key_record->key, key, key_len);
+
+	key_record->key[key_len] = '\0';
 	key_record->data_ptr = record_pos;
 
 	if (TDB_DEBUG){
@@ -749,7 +757,11 @@ STATUS	_db_delete(TDB *db, const char *key){
 
 		//read next pointer
 		fseek(db->idx_fp, (TDB_MAX_KEY_LEN+TDB_PRT_SIZE), SEEK_CUR);
-		fread(&key_next_ptr, TDB_PRT_SIZE, 1, db->idx_fp);
+		size_t result = fread(&key_next_ptr, TDB_PRT_SIZE, 1, db->idx_fp);
+		if (result != 1) {
+        	perror("Failed to read key record2");
+        	exit(EXIT_FAILURE);
+    	}
 		//key_next_ptr = (key_next_ptr==NULL || key_next_ptr==0) ? 0 : key_next_ptr;
 
 		//Set a key postion
@@ -785,7 +797,11 @@ STATUS	_db_delete(TDB *db, const char *key){
 
 		//seek to next pointer, read next pointer
 		fseek(db->idx_fp, (TDB_MAX_KEY_LEN+TDB_PRT_SIZE), SEEK_CUR);
-		fread(&key_next_ptr, TDB_PRT_SIZE, 1, db->idx_fp);
+		size_t result = fread(&key_next_ptr, TDB_PRT_SIZE, 1, db->idx_fp);
+		if (result != 1) {
+        	perror("Failed to read key record3");
+        	exit(EXIT_FAILURE);
+    	}
 		
 		//write previous key next pointer
 		fseek(db->idx_fp, (db->preidx+TDB_INT_SIZE+TDB_MAX_KEY_LEN+TDB_PRT_SIZE), SEEK_SET);
@@ -851,16 +867,17 @@ char *_db_fetch(TDB *db, const char *key){
 		#endif
 		
 		fseeko(db->dat_fp, (db->datoff+TDB_INT_SIZE), SEEK_SET);
-		fread(&len, TDB_INT_SIZE, 1, db->dat_fp);
+		size_t result = fread(&len, TDB_INT_SIZE, 1, db->dat_fp);
+		if (result != 1) {
+        	perror("Failed to read key record4");
+        	exit(EXIT_FAILURE);
+    	}
 
-		//std::cout<<"----------\n";
-		//std::cout<<"key is: "<<key<<std::endl;
-		//std::cout<<"offset is: "<<db->datoff<<std::endl;
-		//std::cout<<"len is: "<<len<<std::endl;
-		//char* tmpRet = new char[10]();
-		//return tmpRet;
-
-		fread(dat_buf, sizeof(char), len, db->dat_fp);
+		result = fread(dat_buf, sizeof(char), len, db->dat_fp);
+		if (result != (size_t)len) {
+        	perror("Failed to read key record5");
+        	exit(EXIT_FAILURE);
+    	}
 
 		dat_len = strlen(dat_buf);
 		#ifdef KIDSSCC
@@ -919,154 +936,173 @@ void _db_rewind(TDB *db){
  *
  */
 char *_db_nextrec(TDB *db, char *ret_key){
-	if (TDB_DEBUG){
-		printf("\n\n================DB Read Next Record====================");	
-	}
-	if ( NULL == db ){
-		if ( NULL != ret_key ){
-			ret_key = NULL;
-		}
-		return NULL;
-	}
-	//Check last record
-	if ( TDB_ERROR == db->next_off ){
-		if (ret_key != NULL){
-			ret_key = NULL;
-		}
-		return NULL;		
-	}
-	//Check is first record
-	if ( 0 == db->next_off){
-		_db_rewind(db);
-		db->next_off = ftell(db->idx_fp);
-	}
+	return nullptr;
+	// if (TDB_DEBUG){
+	// 	printf("\n\n================DB Read Next Record====================");	
+	// }
+	// if ( NULL == db ){
+	// 	if ( NULL != ret_key ){
+	// 		ret_key = NULL;
+	// 	}
+	// 	return NULL;
+	// }
+	// //Check last record
+	// if ( TDB_ERROR == db->next_off ){
+	// 	if (ret_key != NULL){
+	// 		ret_key = NULL;
+	// 	}
+	// 	return NULL;		
+	// }
+	// //Check is first record
+	// if ( 0 == db->next_off){
+	// 	_db_rewind(db);
+	// 	db->next_off = ftell(db->idx_fp);
+	// }
 
-	//Lock file
-	flock(db->idx_fd, LOCK_SH);
-	flock(db->dat_fd, LOCK_SH);
+	// //Lock file
+	// flock(db->idx_fd, LOCK_SH);
+	// flock(db->dat_fd, LOCK_SH);
 
-	struct tdb_key_record_t *key_record = NULL;
-	int key_len = 0;
+	// struct tdb_key_record_t *key_record = NULL;
+	// int key_len = 0;
 
-	//Seek key to real key record
-	if ( NULL == (key_record = (struct tdb_key_record_t *)calloc(key_len, 1)) ) {
-		if (TDB_DEBUG){
-			printf("_db_nextrec(): key_record alloc memory fail\n");
-		}
-		if ( NULL != ret_key ){
-			ret_key = NULL;
-		}
-		return NULL;
-	}
+	// //Seek key to real key record
+	// if ( NULL == (key_record = (struct tdb_key_record_t *)calloc(key_len, 1)) ) {
+	// 	if (TDB_DEBUG){
+	// 		printf("_db_nextrec(): key_record alloc memory fail\n");
+	// 	}
+	// 	if ( NULL != ret_key ){
+	// 		ret_key = NULL;
+	// 	}
+	// 	return NULL;
+	// }
 
-	//fseek to record
-	key_len = sizeof(struct tdb_key_record_t);
-	fseek(db->idx_fp, db->next_off, SEEK_SET);
+	// //fseek to record
+	// key_len = sizeof(struct tdb_key_record_t);
+	// fseek(db->idx_fp, db->next_off, SEEK_SET);
 
-	//loop read not deleted record
-	int len = 0, dat_len = 0, rkey_len = 0;
-	char *key_buf = NULL;
-	char *ret_buf = NULL;
-	char *dat_buf = NULL;
+	// //loop read not deleted record
+	// int len = 0;
+	// int dat_len = 0;
+	// // int rkey_len = 0;
+	// // char *key_buf = NULL;
+	// char *ret_buf = NULL;
+	// char *dat_buf = NULL;
 
-	while (1) {
-		fread(key_record, key_len, 1, db->idx_fp);
-		db->next_off = ftell(db->idx_fp);
-		if (TDB_DEBUG){
-			p_key_record(key_record);
-			#ifdef KIDSSCC
-				printf("_db_nextrec(): fread key_record, memory addr:%p\n", (void*)&key_record);
-			#else
-				printf("_db_nextrec(): fread key_record, memory addr:%d\n", &key_record);
-			#endif
-		}
-		if ( NULL == key_record || NULL == key_record->key || 
-			rtrim(key_record->key) == NULL || 0 == key_record->data_ptr ){
-			if (NULL != key_record ) {
-				free(key_record);
-				key_record = NULL;
-			}	
-			if ( NULL != dat_buf ){
-				free(dat_buf);
-				dat_buf = NULL;
-			}
-			if (TDB_DEBUG){
-				printf("_db_nextrec(): read data is null\n");
-				printf("=======================================================\n");	
-			}
-			/*if (ret_key != NULL){
-				ret_key = NULL;
-			}*/
-			return NULL;
-		}
-		//Skip deleted record
-		if ( TDB_FLAG_DEL == key_record->flag ){
-			if (TDB_DEBUG){
-				printf("_db_nextrec(): read data is deleted, read next record.\n");
-			}
-			continue;
-		}
+	// while (1) {
+	// 	size_t result = fread(key_record, key_len, 1, db->idx_fp);
+	// 	if (result != 1) {
+    //     	perror("Failed to read key record");
+    //     	exit(EXIT_FAILURE);
+    // 	}
+	// 	db->next_off = ftell(db->idx_fp);
+	// 	if (TDB_DEBUG){
+	// 		p_key_record(key_record);
+	// 		#ifdef KIDSSCC
+	// 			printf("_db_nextrec(): fread key_record, memory addr:%p\n", (void*)&key_record);
+	// 		#else
+	// 			printf("_db_nextrec(): fread key_record, memory addr:%d\n", &key_record);
+	// 		#endif
+	// 	}
+	// 	if ( NULL == key_record || NULL == key_record->key || 
+	// 		rtrim(key_record->key) == NULL || 0 == key_record->data_ptr ){
+	// 		if (NULL != key_record ) {
+	// 			free(key_record);
+	// 			key_record = NULL;
+	// 		}	
+	// 		if ( NULL != dat_buf ){
+	// 			free(dat_buf);
+	// 			dat_buf = NULL;
+	// 		}
+	// 		if (TDB_DEBUG){
+	// 			printf("_db_nextrec(): read data is null\n");
+	// 			printf("=======================================================\n");	
+	// 		}
+	// 		/*if (ret_key != NULL){
+	// 			ret_key = NULL;
+	// 		}*/
+	// 		return NULL;
+	// 	}
+	// 	//Skip deleted record
+	// 	if ( TDB_FLAG_DEL == key_record->flag ){
+	// 		if (TDB_DEBUG){
+	// 			printf("_db_nextrec(): read data is deleted, read next record.\n");
+	// 		}
+	// 		continue;
+	// 	}
 
-		//read key
-		if ( NULL != ret_key ){
-			strcpy(ret_key, key_record->key);
-			if (TDB_DEBUG){
-				printf("_db_nextrec(): read ret_key is ok.\n");
-			}
-		}
+	// 	//read key
+	// 	if ( NULL != ret_key ){
+	// 		strcpy(ret_key, key_record->key);
+	// 		if (TDB_DEBUG){
+	// 			printf("_db_nextrec(): read ret_key is ok.\n");
+	// 		}
+	// 	}
 
-		//read data
-		#ifdef KIDSSCC
-			dat_buf = (char*)calloc(TDB_MAX_RECORD_LEN, 1);
-		#else
-			dat_buf = calloc(TDB_MAX_RECORD_LEN, 1);
-		#endif
-		if ( NULL == dat_buf ){
-			if (TDB_DEBUG){
-				printf("_db_nextrec(): dat_buf alloc memory fail\n");
-			}
-			return NULL;
-		}
-		fseek(db->dat_fp, (key_record->data_ptr+TDB_INT_SIZE), SEEK_SET);
-		fread(&len, TDB_PRT_SIZE, 1, db->dat_fp);
-		fread(dat_buf, sizeof(char), len, db->dat_fp);
-		if (TDB_DEBUG){
-			printf("_db_nextrec(): key:%s len:%d, data:%s\n", key_record->key, len, dat_buf);
-		}
+	// 	//read data
+	// 	#ifdef KIDSSCC
+	// 		dat_buf = (char*)calloc(TDB_MAX_RECORD_LEN, 1);
+	// 	#else
+	// 		dat_buf = calloc(TDB_MAX_RECORD_LEN, 1);
+	// 	#endif
+	// 	if ( NULL == dat_buf ){
+	// 		if (TDB_DEBUG){
+	// 			printf("_db_nextrec(): dat_buf alloc memory fail\n");
+	// 		}
+	// 		return NULL;
+	// 	}
+	// 	result = fseek(db->dat_fp, (key_record->data_ptr+TDB_INT_SIZE), SEEK_SET);
+	// 	if (result != 1) {
+    //     	perror("Failed to read key record");
+    //     	exit(EXIT_FAILURE);
+    // 	}
+	// 	result = fread(&len, TDB_PRT_SIZE, 1, db->dat_fp);
+	// 	if (result != 1) {
+    //     	perror("Failed to read key record");
+    //     	exit(EXIT_FAILURE);
+    // 	}
+	// 	result = fread(dat_buf, sizeof(char), len, db->dat_fp);
+	// 	if (result != 1) {
+    //     	perror("Failed to read key record");
+    //     	exit(EXIT_FAILURE);
+    // 	}
+	// 	if (TDB_DEBUG){
+	// 		printf("_db_nextrec(): key:%s len:%d, data:%s\n", key_record->key, len, dat_buf);
+	// 	}
 
-		dat_len = strlen(dat_buf);
-		#ifdef KIDSSCC
-			ret_buf = (char*)calloc(dat_len+1, 1);
-		#else
-			ret_buf = calloc(dat_len+1, 1);
-		#endif
-		memcpy(ret_buf, dat_buf, dat_len+1);
-		if (TDB_DEBUG){
-			printf("_db_nextrec(): ret data:%s\n", ret_buf);
-		}		
+	// 	dat_len = strlen(dat_buf);
+	// 	#ifdef KIDSSCC
+	// 		ret_buf = (char*)calloc(dat_len+1, 1);
+	// 	#else
+	// 		ret_buf = calloc(dat_len+1, 1);
+	// 	#endif
+	// 	memcpy(ret_buf, dat_buf, dat_len+1);
+	// 	if (TDB_DEBUG){
+	// 		printf("_db_nextrec(): ret data:%s\n", ret_buf);
+	// 	}		
 
-		//Free memory
-		if ( NULL != key_record ) {
-			//free(key_record);
-			key_record = NULL;
-		}	
-		if ( NULL != dat_buf ){
-			free(dat_buf);
-			dat_buf = NULL;
-		}
+	// 	//Free memory
+	// 	if ( NULL != key_record ) {
+	// 		//free(key_record);
+	// 		key_record = NULL;
+	// 	}	
+	// 	if ( NULL != dat_buf ){
+	// 		free(dat_buf);
+	// 		dat_buf = NULL;
+	// 	}
 
-		if (TDB_DEBUG){
-			printf("_db_nextrec(): read data success, return ret_buf.\n");
-			printf("=======================================================\n");	
-		}
+	// 	if (TDB_DEBUG){
+	// 		printf("_db_nextrec(): read data success, return ret_buf.\n");
+	// 		printf("=======================================================\n");	
+	// 	}
 
-		//Unlock
-		flock(db->idx_fd, LOCK_UN);
-		flock(db->dat_fd, LOCK_UN);
+	// 	//Unlock
+	// 	flock(db->idx_fd, LOCK_UN);
+	// 	flock(db->dat_fd, LOCK_UN);
 
-		return ret_buf;
-	}
-	return NULL;
+	// 	return ret_buf;
+	// }
+	// return NULL;
 }
 
 
@@ -1180,8 +1216,16 @@ void checkidx(const char * fileName){
 	while(!feof(filePointer)){
 		int keyLen = sizeof(struct tdb_key_record_t);
 		struct tdb_key_record_t *key_record = (struct tdb_key_record_t *)malloc(keyLen);
-		fread(&(key_record->flag), TDB_INT_SIZE, 1, filePointer);
-		fread(&(key_record->key), TDB_MAX_KEY_LEN, 1, filePointer);
+		size_t result = fread(&(key_record->flag), TDB_INT_SIZE, 1, filePointer);
+		if (result != 1) {
+        	perror("Failed to read key record6");
+        	exit(EXIT_FAILURE);
+    	}
+		result = fread(&(key_record->key), TDB_MAX_KEY_LEN, 1, filePointer);
+		if (result != 1) {
+        	perror("Failed to read key record7");
+        	exit(EXIT_FAILURE);
+    	}
 	}
 
 }

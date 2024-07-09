@@ -46,11 +46,12 @@ void cacheConfigure(CacheConfig& config)
     config.validate();   
 }
 
-void initializeCache()
+void initializeCache(size_t poolsize)
 {
     CacheConfig config;
     cacheConfigure(config);
     gCache_ = std::make_unique<Cache>(config);
+    poolSize = poolsize==0?poolSize:(size_t)poolsize * (1024 * 1024);
     std::cout<<"Create Cache successfully\n";
     #if CREATE_DEFAULT_POOL
         defaultPool_ = gCache_->addPool("default_",defaultPoolSize);
@@ -71,6 +72,7 @@ int addpool_(std::string poolName)
     #endif
     cachelib::PoolId poolId = gCache_->getPoolId(poolName);
     if(poolId==-1){
+        std::cout<<"pool size is: "<<poolSize<<std::endl;
         poolId = gCache_->addPool(poolName, poolSize);
     }
     return poolId;

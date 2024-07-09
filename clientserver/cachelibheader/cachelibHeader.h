@@ -43,7 +43,7 @@ void cacheConfigure(CacheConfig& config);
 NavyConfig getNvmConfig(const std::string& cacheDir);
 
 //create a new cachelib instance
-void initializeCache();
+void initializeCache(size_t pool_size);
 
 //reclaim cachelib instance
 void destroyCache();

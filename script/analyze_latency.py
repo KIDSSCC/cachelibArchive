@@ -4,6 +4,9 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import os
 import pandas as pd
+import threading
+import subprocess
+import time
 
 def read_binary_file(filepath):
     with open(filepath, "rb") as f:
@@ -26,24 +29,28 @@ def remove_outliers_percentile(data, lower_percentile=0.00, upper_percentile=0.9
 def bench_one(cache_size, profile_name, warmup_times, run_times):
     # NOTE: this needs to be edited for remote caching
     # excute the benchmark
-    os.system(f'./build/YCSB_CPP --warmup {warmup_times} --run {run_times} --cache {cache_size} --profile {profile_name}')
+    server_process = subprocess.Popen(f'./Build/Server -p {cache_size}', shell=True)
+    time.sleep(5)
+    os.system(f'./Build/YCSB_CPP --warmup {warmup_times} --run {run_times} --cache --profile {profile_name}')
+    os.system(f'python3 ./script/EndServer.py')
+    server_process.wait()
 
 
 def bench(cache_sizes, profile_prefix, warmup_times, run_times):
     for idx, cache_size in enumerate(cache_sizes):
-        print(f'Benching {idx + 1} / {len(cache_sizes)}, cache size: {cache_size}')
+        print(f'Benching {idx + 1} / {len(cache_sizes)}, cache size: {cache_size}M')
         # NOTE: this needs to be edited for remote caching
-        bench_one(cache_size, f'{profile_prefix}_cache{cache_size // 1000}M', warmup_times, run_times)
+        bench_one(cache_size, f'{profile_prefix}_cache{cache_size}M', warmup_times, run_times)
     
 
 def analyze_latency(cache_sizes, profile_prefix):
 
     # NOTE: this two needs to be tuned for a proper visualization
-    bin_width = 20
-    y_lim = 400
+    bin_width = 5
+    y_lim = 20000
 
-    files = [f'{profile_prefix}_cache{cache_size // 1000}M' for cache_size in cache_sizes]
-    labels = [f'{cache_size // 1000}M Cache' for cache_size in cache_sizes]
+    files = [f'{profile_prefix}_cache{cache_size}M_vector.log' for cache_size in cache_sizes]
+    labels = [f'{cache_size}M Cache' for cache_size in cache_sizes]
     data_sets = [read_binary_file(file) for file in files]
     filtered_data_sets = [remove_outliers_percentile(data) for data in data_sets]
     filtered_data_sets_np = [np.array(data, dtype=np.float64) for data in filtered_data_sets]
@@ -66,7 +73,7 @@ def analyze_latency(cache_sizes, profile_prefix):
     plt.savefig(f'{profile_prefix}_latency_density_curves.png')
 
     # plot latency-hitrate plot with ci
-    result_files = [f'{profile_prefix}_cache{cache_size // 1000}M_result.txt' for cache_size in cache_sizes]
+    result_files = [f'{profile_prefix}_cache{cache_size}M_tailLatency.log' for cache_size in cache_sizes]
     # each file has n lines of [p99, p95, p50, hitrate, cache_size]
     # we need to read the p99, p95, p50, hitrate and cache_size
     result_data = []
@@ -118,10 +125,10 @@ def analyze_latency(cache_sizes, profile_prefix):
     plt.savefig(f'{profile_prefix}_latency_hitrate_plot.png')
 
 if __name__ == '__main__':
-    cache_sizes = [1000, 5000, 10000, 20000, 25000, 30000, 35000, 40000, 50000]
-    profile_prefix = './data/tmdb_100M_hotspot'
-    warmup_times = 12
-    run_times = 20
+    cache_sizes = [32, 64, 128, 256, 256+128, 512, 512+128, 512+256, 512+128+256, 1024, 2048]
+    profile_prefix = './data/tmdb_10G_hotspot'
+    warmup_times = 7
+    run_times = 12
     bench(cache_sizes, profile_prefix, warmup_times, run_times)
     analyze_latency(cache_sizes, profile_prefix)
     

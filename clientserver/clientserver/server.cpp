@@ -10,6 +10,8 @@
 #include <netinet/in.h>
 #include <sstream>
 #include <fstream>
+#include <unistd.h>
+#include <cstdlib> 
 //for timeval
 #include <sys/time.h>
 //for atomic_flag
@@ -19,7 +21,7 @@
 #include <config.h>
 #include "shm_util.h"
 
-
+DEFINE_int32(p, 0, "Pool size");
 using namespace std;
 using namespace facebook::cachelib_examples;
 
@@ -336,10 +338,12 @@ void listen_addpool()
 }
 
 
-int main(int argc, char** argv)
+int main(int argc, char* argv[])
 {
+	size_t poolSize = 0;
     folly::Init init(&argc, &argv);
-    initializeCache();
+	poolSize = FLAGS_p;
+    initializeCache(poolSize);
     
     thread t_listenAddPool(listen_addpool);
     t_listenAddPool.join();

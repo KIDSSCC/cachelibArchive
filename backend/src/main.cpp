@@ -35,12 +35,12 @@ int main(int argc, char* argv[]) {
         } else if (arg == "--prepare") {
             do_run = false;
         } else if (arg == "--warmup") {
-            // do_prepare = false;
+            do_prepare = false;
             if (i + 1 < argc) {
                 warmup_times = std::stoi(argv[i + 1]);
             }
         } else if (arg == "--run") {
-            // do_prepare = false;
+            do_prepare = false;
             if (i + 1 < argc) {
                 run_times = std::stoi(argv[i + 1]);
             }
@@ -63,9 +63,6 @@ int main(int argc, char* argv[]) {
             return 0;
         }
     }
-    
-    CachelibClient unified_cache;
-    unified_cache.addpool(UNIFIED_CACHE_POOL);
 
     // aggregate the results of multiple threads
     double total_throughput = 0;
@@ -78,6 +75,8 @@ int main(int argc, char* argv[]) {
         BACKEND backend(0); // therad_id = 0 for same table across threads
         //kidsscc:write to cache in prepare phase
         if(cache_enabled){
+            CachelibClient unified_cache;
+            unified_cache.addpool(UNIFIED_CACHE_POOL);
             backend.enable_cache(unified_cache);
         }
         YCSBBenchmark benchmark(backend);
@@ -93,13 +92,13 @@ int main(int argc, char* argv[]) {
         for (int i = 0; i < num_threads; i++) {
             threads.emplace_back([cache_enabled, i, 
                                 &total_throughput, &total_hit_count, &total_records_executed, 
-                                &total_latencies, &total_latencies_mutex, &unified_cache]() {
+                                &total_latencies, &total_latencies_mutex]() {
                 //for multithreads, may need to create cache client for every thread, utilizing multiple SHM to realize property
-                // CachelibClient cacheclient;
-                // cacheclient.addpool(UNIFIED_CACHE_POOL);
+                CachelibClient cacheclient;
+                cacheclient.addpool(UNIFIED_CACHE_POOL);
                 BACKEND backend(0);
                 if (cache_enabled) {
-                    backend.enable_cache(unified_cache);
+                    backend.enable_cache(cacheclient);
                 }
                 
                 YCSBBenchmark benchmark(backend);

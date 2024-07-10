@@ -146,6 +146,8 @@ int main(int argc, char* argv[]) {
             save_vector_to_file(total_latencies, profile_file);
         }
 
+        unsigned int avarage_percentile = average(total_latencies);
+
         unsigned int total_percentile_99 = percentile(total_latencies, 0.99);
         unsigned int total_percentile_95 = percentile(total_latencies, 0.95);
         unsigned int total_percentile_50 = percentile(total_latencies, 0.50);

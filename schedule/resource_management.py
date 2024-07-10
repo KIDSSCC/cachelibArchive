@@ -28,6 +28,42 @@ def clear_groups():
     #print('clear {} groups'.format(num))
 
 '''
+add a pool in cache, just for test
+'''
+def addpool(poolname):
+    # link the target program
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.connect((host, port))
+
+    message = "A:" + poolname
+    sock.sendall(message.encode())
+
+    # wait the response
+    response = sock.recv(1024).decode()
+    # print(response)
+
+'''
+get pool stat
+'''
+def get_pool_stats():
+    # link the target program
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.connect((host, port))
+
+    message = "G:"
+    sock.sendall(message.encode())
+
+    # wait the response
+    response = sock.recv(1024).decode()
+    sock.close()
+    deserialized_map = {}
+    pairs = response.split(';')[:-1]
+    for pair in pairs:
+        key,value = pair.split(':')
+        deserialized_map[key] = int(value)
+    return deserialized_map
+
+'''
 set cache size
 params:
     workloads:      [wl1, wl2, wl3]
@@ -100,31 +136,28 @@ def set_bandwidth(procs, bandwidths):
 if __name__ == '__main__':
     # delete all old group
     clear_groups()
-    set_cpu_cores([50358], [2])
+    
+    addpool('tmdb')
+    addpool('mysql')
+    addpool('leveldb')
 
-    # write_test_1 = ['dd', 'if=/dev/zero', 'of=/home/md/workloadData/testfile_1', 'bs=1G', 'count=5', 'oflag=direct']
-    # write_test_2 = ['dd', 'if=/dev/zero', 'of=/home/md/workloadData/testfile_2', 'bs=1G', 'count=5', 'oflag=direct']
-    # write_test_3 = ['dd', 'if=/dev/zero', 'of=/home/md/workloadData/testfile_3', 'bs=1G', 'count=5', 'oflag=direct']
-    # read_test_1 = ['dd', 'if=/home/md/workloadData/testfile_1', 'of=/dev/null', 'bs=1G', 'count=5', 'iflag=direct']
-    # read_test_2 = ['dd', 'if=/home/md/workloadData/testfile_2', 'of=/dev/null', 'bs=1G', 'count=5', 'iflag=direct']
-    # read_test_3 = ['dd', 'if=/home/md/workloadData/testfile_3', 'of=/dev/null', 'bs=1G', 'count=5', 'iflag=direct']
-    # process_1 = subprocess.Popen(read_test_1, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    # pid_1 = process_1.pid
-    # process_2 = subprocess.Popen(read_test_2, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    # pid_2 = process_2.pid
-    # process_3 = subprocess.Popen(read_test_3, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    # pid_3 = process_3.pid
+    curr_pool_name = []
+    curr_pool_size = []
+    # test get pool stats
+    print('current pool size')
+    curr_pool_stats = get_pool_stats()
+    for key in curr_pool_stats.keys():
+        curr_pool_name.append(key)
+        curr_pool_size.append(curr_pool_stats[key])
+        print('{} -> {}'.format(key, curr_pool_stats[key]))
 
-    # #procs = [pid_1, pid_2]
-    # #bandwidths = [10, 90]
-    # #set_bandwidth(procs, bandwidths)
+    # test set pool size
+    curr_pool_size = [curr_pool_size[0]+4, curr_pool_size[1]-2, curr_pool_size[2]-2]
+    set_cache_size(curr_pool_name, curr_pool_size)
 
-    # stdout_1, stderr_1 = process_1.communicate()
-    # stdout_2, stderr_2 = process_2.communicate()
-    # stdout_3, stderr_3 = process_3.communicate()
-    # print('stdout_1 is:', stdout_1)
-    # print('stderr_1 is:', stderr_1)
-    # print('stdout_2 is:', stdout_2)
-    # print('stderr_2 is:', stderr_2)
-    # print('stdout_3 is:', stdout_3)
-    # print('stderr_3 is:', stderr_3)
+    curr_pool_stats = get_pool_stats()
+    print('after adjust pool size')
+    for key in curr_pool_stats.keys():
+        curr_pool_name.append(key)
+        curr_pool_size.append(curr_pool_stats[key])
+        print('{} -> {}'.format(key, curr_pool_stats[key]))

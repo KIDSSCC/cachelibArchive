@@ -21,7 +21,11 @@
 #include <config.h>
 #include "shm_util.h"
 
+//Command line parameter -p -c
 DEFINE_int32(p, 0, "Pool size");
+DEFINE_int32(c, 0, "Cache size");
+
+
 using namespace std;
 using namespace facebook::cachelib_examples;
 
@@ -341,9 +345,11 @@ void listen_addpool()
 int main(int argc, char* argv[])
 {
 	size_t poolSize = 0;
+	size_t cacheSize = 0;
     folly::Init init(&argc, &argv);
+	cacheSize = FLAGS_c;
 	poolSize = FLAGS_p;
-    initializeCache(poolSize);
+    initializeCache(cacheSize, poolSize);
     
     thread t_listenAddPool(listen_addpool);
     t_listenAddPool.join();

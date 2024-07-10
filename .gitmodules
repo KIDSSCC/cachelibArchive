@@ -1,0 +1,3 @@
+[submodule "schedule/LinUCB"]
+	path = schedule/LinUCB
+	url = git@github.com:KIDSSCC/LinUCBSchedule.git

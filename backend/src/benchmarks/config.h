@@ -11,8 +11,8 @@
 
 // kind of backend
 // #define BACKEND TmdbBackend
-#define BACKEND MySQLBackend
-// #define BACKEND MongoDBBackend
+// #define BACKEND MySQLBackend
+#define BACKEND MongoDBBackend
 // #define BACKEND LevelDBBackend
 // #define BACKEND SQLiteBackend
 

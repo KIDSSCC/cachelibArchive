@@ -126,7 +126,7 @@ def analyze_latency(cache_sizes, profile_prefix):
 
 if __name__ == '__main__':
     cache_sizes = [32, 64, 128, 256, 256+128, 512, 512+128, 512+256, 512+128+256, 1024, 2048]
-    profile_prefix = './data/tmdb_10G_hotspot'
+    profile_prefix = './data/mongodb_1G_hotspot'
     warmup_times = 7
     run_times = 12
     bench(cache_sizes, profile_prefix, warmup_times, run_times)

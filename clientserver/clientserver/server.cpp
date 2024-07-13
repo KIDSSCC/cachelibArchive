@@ -22,8 +22,8 @@
 #include "shm_util.h"
 
 //Command line parameter -p -c
-DEFINE_int32(p, 0, "Pool size");
-DEFINE_int32(c, 0, "Cache size");
+DEFINE_int32(p, -1, "Pool size");
+DEFINE_int32(c, -1, "Cache size");
 
 
 using namespace std;
@@ -344,8 +344,8 @@ void listen_addpool()
 
 int main(int argc, char* argv[])
 {
-	size_t poolSize = 0;
-	size_t cacheSize = 0;
+	int poolSize = -1;
+	int cacheSize = -1;
     folly::Init init(&argc, &argv);
 	cacheSize = FLAGS_c;
 	poolSize = FLAGS_p;

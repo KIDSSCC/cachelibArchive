@@ -86,7 +86,8 @@ int main(int argc, char* argv[]) {
 
 
     int total_times = warmup_times + run_times;
-    do_run = total_times>0?true:do_run;
+    // when prepare, warmup and run need to be ignored
+    // do_run = total_times>0?true:do_run;
     if(!do_run)
         return 0;
     while (total_times--) {

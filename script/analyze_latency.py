@@ -51,6 +51,7 @@ def analyze_latency(cache_sizes, profile_prefix):
 
     files = [f'{profile_prefix}_cache{cache_size}M_vector.log' for cache_size in cache_sizes]
     labels = [f'{cache_size}M Cache' for cache_size in cache_sizes]
+    # read all results
     data_sets = [read_binary_file(file) for file in files]
     filtered_data_sets = [remove_outliers_percentile(data) for data in data_sets]
     filtered_data_sets_np = [np.array(data, dtype=np.float64) for data in filtered_data_sets]
@@ -99,25 +100,25 @@ def analyze_latency(cache_sizes, profile_prefix):
     # Plotting using Seaborn
     plt.figure(figsize=(12, 8))
 
-    # p99 plot
-    sns.lineplot(x='hitrate_mean', y='p99_mean', data=summary_df, label='p99', marker='o')
-    plt.fill_between(summary_df['hitrate_mean'], 
+    # p99 plot hitrate_mean
+    sns.lineplot(x='cache_size', y='p99_mean', data=summary_df, label='p99', marker='o')
+    plt.fill_between(summary_df['cache_size'], 
                     summary_df['p99_mean'] - summary_df['p99_ci'], 
                     summary_df['p99_mean'] + summary_df['p99_ci'], alpha=0.2)
 
     # p95 plot
-    sns.lineplot(x='hitrate_mean', y='p95_mean', data=summary_df, label='p95', marker='o')
-    plt.fill_between(summary_df['hitrate_mean'], 
+    sns.lineplot(x='cache_size', y='p95_mean', data=summary_df, label='p95', marker='o')
+    plt.fill_between(summary_df['cache_size'], 
                     summary_df['p95_mean'] - summary_df['p95_ci'], 
                     summary_df['p95_mean'] + summary_df['p95_ci'], alpha=0.2)
 
     # p50 plot
-    sns.lineplot(x='hitrate_mean', y='p50_mean', data=summary_df, label='p50', marker='o')
-    plt.fill_between(summary_df['hitrate_mean'], 
+    sns.lineplot(x='cache_size', y='p50_mean', data=summary_df, label='p50', marker='o')
+    plt.fill_between(summary_df['cache_size'], 
                     summary_df['p50_mean'] - summary_df['p50_ci'], 
                     summary_df['p50_mean'] + summary_df['p50_ci'], alpha=0.2)
 
-    plt.xlabel('Mean Hitrate', fontsize=14)
+    plt.xlabel('Cache Size', fontsize=14)
     plt.ylabel('Latency', fontsize=14)
     plt.title('Latency vs Hitrate with 99% CI, ' + profile_prefix, fontsize=16)
     plt.legend()
@@ -125,8 +126,8 @@ def analyze_latency(cache_sizes, profile_prefix):
     plt.savefig(f'{profile_prefix}_latency_hitrate_plot.png')
 
 if __name__ == '__main__':
-    cache_sizes = [32, 64, 128, 256, 256+128, 512, 512+128, 512+256, 512+128+256, 1024, 2048]
-    profile_prefix = './data/mongodb_1G_hotspot'
+    cache_sizes = [i * 128 for i in range(45, 51)]
+    profile_prefix = './data/0712/mysql_5G_hotspot'
     warmup_times = 7
     run_times = 12
     bench(cache_sizes, profile_prefix, warmup_times, run_times)

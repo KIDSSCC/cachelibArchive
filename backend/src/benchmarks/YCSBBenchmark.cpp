@@ -1,25 +1,35 @@
 #include "YCSBBenchmark.h"
 #include <thread>
 
-YCSBBenchmark::YCSBBenchmark(Backend& backend, unsigned int CURR_QUERY)
+YCSBBenchmark::YCSBBenchmark(Backend& backend, bool WhetherSequence, unsigned int CURR_QUERY)
     : Benchmark(backend) { 
         //kidsscc: reinitialize max_query
         max_query = CURR_QUERY;
+        whether_sequence = WhetherSequence;
+
         name = "YCSB";
         generator = std::default_random_engine(std::time(0));
-        #if DISTRIBUTION == DISTRIBUTION_ZIPFIAN
-            zipfian_distrib = zipfian_int_distribution<int>(0, max_records - 1, ZIPFIAN_SKEW);
-        #elif DISTRIBUTION == DISTRIBUTION_UNIFORM
-            uniform_distrib = std::uniform_int_distribution<int>(0, max_records - 1);
-        #elif DISTRIBUTION == DISTRIBUTION_SEQUENTIAL
-            sequential_counter = 0;
-        #elif DISTRIBUTION == DISTRIBUTION_HOTSPOT
-            std::vector<double> intervals = {0, HOTSPOT_PROPORTION * max_records, double(max_records)};
-            std::vector<double> weights = {HOTSPOT_ALPHA, 1 - HOTSPOT_ALPHA};
-            hotspot_distrib = std::piecewise_constant_distribution<double>(intervals.begin(), intervals.end(), weights.begin());
-        #elif DISTRIBUTION == DISTRIBUTION_EXPONENTIAL
-            exponential_distrib = std::exponential_distribution<double>(EXPONENTIAL_LAMBDA);
-        #endif
+
+        if(!whether_sequence)
+        {
+            #if DISTRIBUTION == DISTRIBUTION_ZIPFIAN
+                zipfian_distrib = zipfian_int_distribution<int>(0, max_records - 1, ZIPFIAN_SKEW);
+            #elif DISTRIBUTION == DISTRIBUTION_UNIFORM
+                uniform_distrib = std::uniform_int_distribution<int>(0, max_records - 1);
+            #elif DISTRIBUTION == DISTRIBUTION_SEQUENTIAL
+                sequential_counter = 0;
+            #elif DISTRIBUTION == DISTRIBUTION_HOTSPOT
+                std::vector<double> intervals = {0, HOTSPOT_PROPORTION * max_records, double(max_records)};
+                std::vector<double> weights = {HOTSPOT_ALPHA, 1 - HOTSPOT_ALPHA};
+                hotspot_distrib = std::piecewise_constant_distribution<double>(intervals.begin(), intervals.end(), weights.begin());
+            #elif DISTRIBUTION == DISTRIBUTION_EXPONENTIAL
+                exponential_distrib = std::exponential_distribution<double>(EXPONENTIAL_LAMBDA);
+            #endif 
+        }else
+        {
+            unified_sequential_counter = 0;
+        }
+        
         rng = std::mt19937(rd());
     }
 
@@ -54,20 +64,27 @@ bool YCSBBenchmark::step() {
     if (rng() % 100 < query_proportion * 100) {
         // read query
         std::vector<std::string> results;
-        #if DISTRIBUTION == DISTRIBUTION_ZIPFIAN
-            int key = zipfian_distrib(generator) % max_records;
-        #elif DISTRIBUTION == DISTRIBUTION_UNIFORM
-            int key = uniform_distrib(generator) % max_records;
-        #elif DISTRIBUTION == DISTRIBUTION_SEQUENTIAL
-            int key = sequential_counter++;
-            if (sequential_counter >= max_records) {
-                sequential_counter = 0;
+        int key = unified_sequential_counter++;
+        if (unified_sequential_counter >= max_records) {
+                unified_sequential_counter = 0;
             }
-        #elif DISTRIBUTION == DISTRIBUTION_HOTSPOT
-            int key = int(hotspot_distrib(generator)) % max_records;
-        #elif DISTRIBUTION == DISTRIBUTION_EXPONENTIAL
-            int key = int(exponential_distrib(generator)) % max_records; // its not precise but it works.
-        #endif
+        if(!whether_sequence)
+        {
+            #if DISTRIBUTION == DISTRIBUTION_ZIPFIAN
+                key = zipfian_distrib(generator) % max_records;
+            #elif DISTRIBUTION == DISTRIBUTION_UNIFORM
+                key = uniform_distrib(generator) % max_records;
+            #elif DISTRIBUTION == DISTRIBUTION_SEQUENTIAL
+                key = sequential_counter++;
+                if (sequential_counter >= max_records) {
+                    sequential_counter = 0;
+                }
+            #elif DISTRIBUTION == DISTRIBUTION_HOTSPOT
+                key = int(hotspot_distrib(generator)) % max_records;
+            #elif DISTRIBUTION == DISTRIBUTION_EXPONENTIAL
+                key = int(exponential_distrib(generator)) % max_records; // its not precise but it works.
+            #endif
+        }
         // debug(
         //     std::cout << "YCSBBenchmark: read query: " << key << std::endl;
         // );

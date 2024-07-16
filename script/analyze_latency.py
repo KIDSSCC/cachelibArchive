@@ -126,10 +126,11 @@ def analyze_latency(cache_sizes, profile_prefix):
     plt.savefig(f'{profile_prefix}_latency_hitrate_plot.png')
 
 if __name__ == '__main__':
-    cache_sizes = [i * 128 for i in range(45, 51)]
-    profile_prefix = './data/0712/mysql_5G_hotspot'
-    warmup_times = 7
-    run_times = 12
+    # 0-7G, 256M per unit
+    cache_sizes = [i * 256 for i in range(49)]
+    profile_prefix = './data/0713/tmdb_10G_sequential'
+    warmup_times = 15
+    run_times = 5
     bench(cache_sizes, profile_prefix, warmup_times, run_times)
     analyze_latency(cache_sizes, profile_prefix)
     

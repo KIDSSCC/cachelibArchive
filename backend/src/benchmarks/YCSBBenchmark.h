@@ -13,7 +13,7 @@
 class YCSBBenchmark : public Benchmark
 {
 public:
-    YCSBBenchmark(Backend& backend, unsigned int CURR_QUERY = MAX_QUERIES);
+    YCSBBenchmark(Backend& backend, bool WhetherSequence=false, unsigned int CURR_QUERY = MAX_QUERIES);
     ~YCSBBenchmark() = default;
     bool create_database();
     bool load_database();
@@ -51,4 +51,7 @@ public:
     unsigned int max_field_size = MAX_FIELD_SIZE; // size of each field (in chars)
     unsigned int max_query = MAX_QUERIES; // number of queries to execute
     double query_proportion = QUERY_PROPORTION; // proportion of read queries, the rest are insert queries
+
+    bool whether_sequence = false;
+    unsigned int unified_sequential_counter = 0;
 };

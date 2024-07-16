@@ -96,7 +96,7 @@ int main(int argc, char* argv[]) {
         for (int i = 0; i < num_threads; i++) {
             threads.emplace_back([cache_enabled, i, 
                                 &total_throughput, &total_hit_count, &total_records_executed, 
-                                &total_latencies, &total_latencies_mutex]() {
+                                &total_latencies, &total_latencies_mutex, warmup_times,run_times, total_times]() {
                 //for multithreads, may need to create cache client for every thread, utilizing multiple SHM to realize property
                 CachelibClient cacheclient;
                 cacheclient.addpool(UNIFIED_CACHE_POOL);
@@ -105,31 +105,50 @@ int main(int argc, char* argv[]) {
                     backend.enable_cache(cacheclient);
                 }
                 
-                YCSBBenchmark benchmark(backend);
-                benchmark.run();
-                double throughput = (double) benchmark.records_executed / (double) benchmark.millis_elapsed * 1000;
-                
-                std::vector<unsigned int> latencies = benchmark.latencies_ns;
-                unsigned int percentile_99 = percentile(latencies, 0.99);
-                unsigned int percentile_95 = percentile(latencies, 0.95);
-                unsigned int percentile_50 = percentile(latencies, 0.50);
-
-                unsigned int hit_count = backend.hit_count;
-                unsigned int total_count = benchmark.records_executed;
-                double hitrate = (double) hit_count / (double) total_count;
-                OUTPUT << "Thread " << i << " Hitrate: " << hitrate << std::endl;
-                OUTPUT << "Thread " << i << " Throughput: " << throughput << " records/s" << std::endl;
-                OUTPUT << "Thread " << i << " 99th percentile: " << percentile_99 << " ns" << std::endl;
-                OUTPUT << "Thread " << i << " 95th percentile: " << percentile_95 << " ns" << std::endl;
-                OUTPUT << "Thread " << i << " 50th percentile: " << percentile_50 << " ns" << std::endl;
-
-                // aggregate the results
-                total_throughput += throughput;
-                total_hit_count += hit_count;
-                total_records_executed += total_count;
+                if(warmup_times>0 && total_times == (warmup_times + run_times - 1))
                 {
-                    std::lock_guard<std::mutex> lock(total_latencies_mutex);
-                    total_latencies.insert(total_latencies.end(), latencies.begin(), latencies.end());
+                    YCSBBenchmark benchmark(backend, true, MAX_RECORDS);
+                    benchmark.run();
+                    double throughput = (double) benchmark.records_executed / (double) benchmark.millis_elapsed * 1000;
+                    
+                    std::vector<unsigned int> latencies = benchmark.latencies_ns;
+                    unsigned int hit_count = backend.hit_count;
+                    unsigned int total_count = benchmark.records_executed;
+                    // aggregate the results
+                    total_throughput += throughput;
+                    total_hit_count += hit_count;
+                    total_records_executed += total_count;
+                    {
+                        std::lock_guard<std::mutex> lock(total_latencies_mutex);
+                        total_latencies.insert(total_latencies.end(), latencies.begin(), latencies.end());
+                    }
+                }else
+                {
+                    YCSBBenchmark benchmark(backend);
+                    benchmark.run();
+                    double throughput = (double) benchmark.records_executed / (double) benchmark.millis_elapsed * 1000;
+                    
+                    std::vector<unsigned int> latencies = benchmark.latencies_ns;
+                    unsigned int hit_count = backend.hit_count;
+                    unsigned int total_count = benchmark.records_executed;
+                    // double hitrate = (double) hit_count / (double) total_count;
+                    // unsigned int percentile_99 = percentile(latencies, 0.99);
+                    // unsigned int percentile_95 = percentile(latencies, 0.95);
+                    // unsigned int percentile_50 = percentile(latencies, 0.50);
+                    // OUTPUT << "Thread " << i << " Hitrate: " << hitrate << std::endl;
+                    // OUTPUT << "Thread " << i << " Throughput: " << throughput << " records/s" << std::endl;
+                    // OUTPUT << "Thread " << i << " 99th percentile: " << percentile_99 << " ns" << std::endl;
+                    // OUTPUT << "Thread " << i << " 95th percentile: " << percentile_95 << " ns" << std::endl;
+                    // OUTPUT << "Thread " << i << " 50th percentile: " << percentile_50 << " ns" << std::endl;
+
+                    // aggregate the results
+                    total_throughput += throughput;
+                    total_hit_count += hit_count;
+                    total_records_executed += total_count;
+                    {
+                        std::lock_guard<std::mutex> lock(total_latencies_mutex);
+                        total_latencies.insert(total_latencies.end(), latencies.begin(), latencies.end());
+                    }
                 }
             });
         }

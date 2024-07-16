@@ -15,6 +15,6 @@
 #define MAX_WAIT 100000000 
 #define SIZE_CONV ((size_t)256 * 1024 * 1024)   //Unit of cache resize
 
-#define CACHE_HIT 0
+#define CACHE_HIT 1
 
 #endif

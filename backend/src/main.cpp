@@ -72,13 +72,14 @@ int main(int argc, char* argv[]) {
     std::mutex total_latencies_mutex;
 
     if (do_prepare) {
+        CachelibClient unified_cache;
         BACKEND backend(0); // therad_id = 0 for same table across threads
         //kidsscc:write to cache in prepare phase
         if(cache_enabled){
-            CachelibClient unified_cache;
             unified_cache.addpool(UNIFIED_CACHE_POOL);
             backend.enable_cache(unified_cache);
         }
+        
         YCSBBenchmark benchmark(backend);
         benchmark.prepare();
         std::cout << "Preparation done, " << g_next_insert_key << " records inserted." << std::endl;

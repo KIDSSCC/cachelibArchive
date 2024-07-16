@@ -12,6 +12,7 @@ using CacheKey = typename Cache::Key;
 using CacheReadHandle = typename Cache::ReadHandle;
 using CacheWriteHandle = typename Cache::WriteHandle;
 using PoolId = cachelib::PoolId;
+using PoolStats = cachelib::PoolStats;
 
 // Global cache object and a default cache pool
 std::unique_ptr<Cache> gCache_;

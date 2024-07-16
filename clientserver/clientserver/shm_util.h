@@ -79,7 +79,7 @@ public:
 	std::string logFileName;
 	CacheHitStatistics(std::string name):spinlock(ATOMIC_FLAG_INIT), spinlockForRate(ATOMIC_FLAG_INIT){
 		this->poolName = name;
-		this->logFileName = name + "_CacheHitRate.log";
+		this->logFileName = name + "_cachehitrate.log";
 		gettimeofday(&(this->startTime), NULL);
 	};
 	void adjustSize(int nSize){

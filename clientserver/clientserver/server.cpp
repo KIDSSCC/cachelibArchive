@@ -49,11 +49,8 @@ map<string, uint64_t> getCacheStats()
 	set<PoolId> allPool = getPoolIds_();
 	for(const auto& pid:allPool){
 		PoolStats currPoolStat = getPoolStat(pid);
-		//cacheStats.allPoolSize[currPoolStat.poolName]=currPoolStat.poolSize;
 		res[currPoolStat.poolName] = currPoolStat.poolSize / SIZE_CONV;
-		//cout<<"Name is: "<<currPoolStat.poolName<<" size is: "<<res[currPoolStat.poolName]<<endl;
 	}	
-	//cacheStats.printCacheStat();
 	return res;
 }
 
@@ -89,50 +86,49 @@ void executeNewConfig(string config){
 	}
 }
 
-
-
 void sharedMemCtl(string appName, int no, CacheHitStatistics* chs)
 {
     int SHARED_MEMORY_SIZE = sizeof(shm_stru);
     string localAppName = appName;
     cout<<"register SHM: "<<localAppName<<endl;
-    //创建共享内存
+    // create new shared memory
     int shm_fd = shm_open(localAppName.c_str(), O_CREAT | O_RDWR, 0666);
     if (shm_fd == -1) 
     {
         perror("Error creating shared memory");
         exit(EXIT_FAILURE);
     }
-    //调整共享内存区大小
+    // adjust the size of shared memory
     if (ftruncate(shm_fd, SHARED_MEMORY_SIZE) == -1) 
     {
         perror("Error resizing shared memory");
         exit(EXIT_FAILURE);
     }
-    // 将共享内存映射到进程的地址空间
+    // map the shared memory to the process memory
     void* shared_memory = mmap(NULL, SHARED_MEMORY_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
     if (shared_memory == MAP_FAILED) 
     {
         perror("Error mapping shared memory");
         exit(EXIT_FAILURE);
     }
-    //创建信号量
+	shm_stru *getMessage = static_cast<shm_stru*>(shared_memory);
+
+    //create new semaphore
     string sem_server=localAppName + "_Server";
     string sem_getback=localAppName + "_getback";
-    //指示当前是否需要服务端处理共享内存区
+	string getValue;
+
+    //indicates whether the server currently needs to handle the shared memory area
     sem_t* semaphore=sem_open(localAppName.c_str(), O_CREAT, 0666,0);
-    //指示当前共享内存区是否空闲，客户端能够开始新的操作
+    //indicates whether the shared memory is free to begin a new request
     sem_t* semaphore_Server=sem_open(sem_server.c_str(), O_CREAT, 0666,1);
-    //对于get操作的回传信号
+    //indicates whether the client currently can read the result of get operation
     sem_t* semaphore_GetBack=sem_open(sem_getback.c_str(), O_CREAT, 0666,0);
-    string getValue;
-
-
+    
     bool available = true;
     while(available)
     {
     	int waitCount=0;
-
         //try_wait() within a certain number of times or wait()
 		while(sem_trywait(semaphore)!=0){
 			//can't get semaphore
@@ -143,20 +139,15 @@ void sharedMemCtl(string appName, int no, CacheHitStatistics* chs)
 			}
 			waitCount++;
 		}
-        //while(sem_trywait(semaphore)!=0);
-        //sem_wait(semaphore);
-        shm_stru *getMessage = static_cast<shm_stru*>(shared_memory);
         switch(getMessage->ctrl)
         {
             case SIG_SET:
-                //set操作
+                // set operation
                 set_(getMessage->pid,getMessage->key,getMessage->value);
-                //cout<<"set operation---key is: "<<getMessage->key<<" and value is: "<<getMessage->value<<" pid is: "<<getMessage->pid<<endl;
-                //释放资源
                 sem_post(semaphore_Server);
                 break;
             case SIG_GET:
-                //get操作
+                // get operation 
                 getValue=get_(getMessage->key);
 				#if CACHE_HIT
 					while(chs->spinlockForRate.test(memory_order_acquire));
@@ -164,9 +155,9 @@ void sharedMemCtl(string appName, int no, CacheHitStatistics* chs)
 					if(getValue != ""){
 						chs->hitGet[no]++;
 					}
+					chs->spinlockForRate.clear(memory_order_release);
 				#endif
                 strcpy(getMessage->value,getValue.c_str());
-                //cout<<"get operation---key is: "<<getMessage->key<<" and value is: "<<getMessage->value<<endl;
                 sem_post(semaphore_GetBack);
                 break;
             case SIG_DEL:
@@ -185,10 +176,10 @@ void sharedMemCtl(string appName, int no, CacheHitStatistics* chs)
                 break;
         }
 		#if CACHE_HIT
-			if(no == 0){
+		// calculate cache hit rate every 10 seconds
+			if(!chs->spinlock.test_and_set(memory_order_acquire)){
 				gettimeofday(&(chs->endTime), NULL);
-				if(getUsedTime(chs->startTime, chs->endTime)>5){
-					//cout<<"name is: "<<localAppName<<" and time is: "<<getUsedTime(chs->startTime, chs->endTime)<<endl;
+				if(getUsedTime(chs->startTime, chs->endTime)>10){
 					while(chs->spinlockForRate.test_and_set(memory_order_acquire));
 					double t_totalGet = 0;
 					double t_totalHit = 0;
@@ -237,6 +228,7 @@ void listen_addpool()
 	server_address.sin_addr.s_addr = INADDR_ANY;
 	server_address.sin_port = htons(54000);
 	int yes = 1;
+	// allow socket reuse shortly after it is closed
 	if(setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes))==-1){
 		cout << "Error: Failed to set socket\n";
 		return;
@@ -249,9 +241,9 @@ void listen_addpool()
 	if (listen(server_socket, SOMAXCONN) == -1) {
 		cout << "Error: Failed to listen\n";
 		return ;
-    	}
+    }
 	
-    	while(true){
+    while(true){
 		int client_socket = accept(server_socket, nullptr,nullptr);
 		if(client_socket == -1){
 			cout<<"Failed to accept\n";
@@ -266,7 +258,7 @@ void listen_addpool()
 			close(client_socket);
 			continue;
 		}
-		/* wait to solve request*/
+		// wait to solve request
 		if(buf[0]=='A'){
 			//registre pool
 			string poolName = string(buf, 2, bytesReceived-2);
@@ -280,9 +272,7 @@ void listen_addpool()
 				poolRecord[poolName] = make_pair(1, 0);
 				newShmId = (poolRecord[poolName].second)++;
 				slockForRecord.clear(memory_order_release);
-
 				name2CHS[poolName] = new CacheHitStatistics(poolName);
-				
 			}else{
 				while(slockForRecord.test_and_set(memory_order_acquire));
 				(poolRecord[poolName].first)++;
@@ -299,20 +289,9 @@ void listen_addpool()
 			if(bytesSent == -1){
 				cout<<"Error:failed to send response\n";
 			}
-
-			
-			/*
-			if(poolRecord[poolName]==0){
-				poolRecord[poolName]=1;
-				thread t(sharedMemCtl, poolName.c_str());
-				t.detach();
-			}
-			int bytesSent = send(client_socket, &pid, sizeof(pid), 0);
-			*/
 			
 		}else if(buf[0]=='G'){
-			//cout<<"get a request to get pool Stats\n";
-			//get Status
+			//get cache pool status
 			map<string, uint64_t> poolStats = getCacheStats();
 			ostringstream oss;
 			for(const auto& pair:poolStats){

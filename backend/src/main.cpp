@@ -132,15 +132,16 @@ int main(int argc, char* argv[]) {
                     std::vector<unsigned int> latencies = benchmark.latencies_ns;
                     unsigned int hit_count = backend.hit_count;
                     unsigned int total_count = benchmark.records_executed;
-                    // double hitrate = (double) hit_count / (double) total_count;
-                    // unsigned int percentile_99 = percentile(latencies, 0.99);
-                    // unsigned int percentile_95 = percentile(latencies, 0.95);
-                    // unsigned int percentile_50 = percentile(latencies, 0.50);
-                    // OUTPUT << "Thread " << i << " Hitrate: " << hitrate << std::endl;
-                    // OUTPUT << "Thread " << i << " Throughput: " << throughput << " records/s" << std::endl;
-                    // OUTPUT << "Thread " << i << " 99th percentile: " << percentile_99 << " ns" << std::endl;
-                    // OUTPUT << "Thread " << i << " 95th percentile: " << percentile_95 << " ns" << std::endl;
-                    // OUTPUT << "Thread " << i << " 50th percentile: " << percentile_50 << " ns" << std::endl;
+                    double hitrate = (double) hit_count / (double) total_count;
+                    unsigned int percentile_99 = percentile(latencies, 0.99);
+                    unsigned int percentile_95 = percentile(latencies, 0.95);
+                    unsigned int percentile_50 = percentile(latencies, 0.50);
+                    OUTPUT << "Thread " << i << " Hitrate: " << hitrate << std::endl;
+                    OUTPUT << "Thread " << i << " Throughput: " << throughput << " records/s" << std::endl;
+                    OUTPUT << "Thread " << i << " UsedTime: " << (double) benchmark.millis_elapsed/1000 << " s" << std::endl;
+                    OUTPUT << "Thread " << i << " 99th percentile: " << percentile_99 << " ns" << std::endl;
+                    OUTPUT << "Thread " << i << " 95th percentile: " << percentile_95 << " ns" << std::endl;
+                    OUTPUT << "Thread " << i << " 50th percentile: " << percentile_50 << " ns" << std::endl;
 
                     // aggregate the results
                     total_throughput += throughput;
@@ -173,11 +174,11 @@ int main(int argc, char* argv[]) {
         unsigned int total_percentile_95 = percentile(total_latencies, 0.95);
         unsigned int total_percentile_50 = percentile(total_latencies, 0.50);
         double total_hitrate = (double) total_hit_count / (double) total_records_executed;
-        OUTPUT << "Total Hitrate: " << total_hitrate << std::endl;
-        OUTPUT << "Total Throughput: " << total_throughput << " records/s" << std::endl;
-        OUTPUT << "Total 99th percentile: " << total_percentile_99 << " ns" << std::endl;
-        OUTPUT << "Total 95th percentile: " << total_percentile_95 << " ns" << std::endl;
-        OUTPUT << "Total 50th percentile: " << total_percentile_50 << " ns" << std::endl;
+        // OUTPUT << "Total Hitrate: " << total_hitrate << std::endl;
+        // OUTPUT << "Total Throughput: " << total_throughput << " records/s" << std::endl;
+        // OUTPUT << "Total 99th percentile: " << total_percentile_99 << " ns" << std::endl;
+        // OUTPUT << "Total 95th percentile: " << total_percentile_95 << " ns" << std::endl;
+        // OUTPUT << "Total 50th percentile: " << total_percentile_50 << " ns" << std::endl;
         
         if (total_times < run_times && !profile_file.empty()) {
             // save percentiles and hitrate to a file

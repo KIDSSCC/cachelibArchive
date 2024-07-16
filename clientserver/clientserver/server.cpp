@@ -139,6 +139,7 @@ void sharedMemCtl(string appName, int no, CacheHitStatistics* chs)
 			}
 			waitCount++;
 		}
+		bool res =false;
         switch(getMessage->ctrl)
         {
             case SIG_SET:
@@ -148,16 +149,16 @@ void sharedMemCtl(string appName, int no, CacheHitStatistics* chs)
                 break;
             case SIG_GET:
                 // get operation 
-                getValue=get_(getMessage->key);
+                res = get_(getMessage->key, getMessage->value);
 				#if CACHE_HIT
 					while(chs->spinlockForRate.test(memory_order_acquire));
 					chs->totalGet[no]++;
-					if(getValue != ""){
+					if(res){
 						chs->hitGet[no]++;
 					}
 					chs->spinlockForRate.clear(memory_order_release);
 				#endif
-                strcpy(getMessage->value,getValue.c_str());
+                // strcpy(getMessage->value,getValue.c_str());
                 sem_post(semaphore_GetBack);
                 break;
             case SIG_DEL:

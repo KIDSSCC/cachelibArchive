@@ -53,7 +53,7 @@ int addpool_(std::string poolName);
 
 //data access API
 bool set_(cachelib::PoolId pid, CacheKey key, const std::string& value);
-std::string get_(CacheKey key);
+bool get_(CacheKey key, char getValue[]);
 bool del_(CacheKey key);
 
 

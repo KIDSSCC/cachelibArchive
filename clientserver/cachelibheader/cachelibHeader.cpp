@@ -91,14 +91,15 @@ bool set_(cachelib::PoolId pid, CacheKey key, const std::string& value)
     return true;
 }
 
-std::string get_(CacheKey key)
+bool get_(CacheKey key, char getValue[])
 {
     CacheReadHandle rh = gCache_->find(key);
     if(!rh){
-        return "";
+        return false;
     }
-    folly::StringPiece data{reinterpret_cast<const char*>(rh->getMemory()), rh->getSize()};
-    return data.toString();
+    memcpy(getValue, reinterpret_cast<const char*>(rh->getMemory()), rh->getSize());
+    // folly::StringPiece data{reinterpret_cast<const char*>(rh->getMemory()), rh->getSize()};
+    return true;
 }
 
 bool del_(CacheKey key)

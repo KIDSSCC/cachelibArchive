@@ -20,8 +20,8 @@ LD_LIBRARY_PATH="$PREFIX/lib:$PREFIX/lib64:${LD_LIBRARY_PATH:-}"
 export LD_LIBRARY_PATH
 
 rm -rf Build
-rm -rf *.tdb
-rm -rf *.tdi
+# rm -rf *.tdb
+# rm -rf *.tdi
 rm -rf *.res
 rm -rf *.log
 rm -rf /dev/shm/*

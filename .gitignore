@@ -1,5 +1,6 @@
 *.tdb
 *.tdi
+*.out
 .vscode
 Build
 build
@@ -11,5 +12,8 @@ build
 /sqlite
 /executefile
 /data
+bin/
+schedule/__pycache__/
 
 startup.sh
+

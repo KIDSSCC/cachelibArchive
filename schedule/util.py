@@ -5,6 +5,25 @@ import pickle
 host = '127.0.0.1'
 port = 54000
 
+def get_last_line(file_name):
+    '''
+    Open file and read the last line
+
+    Args:
+        file_name (str): file name
+
+    Returns:
+        str: last line of the file, '' if the file not found
+    '''
+    try:
+        with open(file_name, 'rb') as file:
+            file.seek(-2,2)
+            while file.read(1)!=b'\n':
+                file.seek(-2, 1)
+            return file.readline().decode().strip()
+    except FileNotFoundError:
+        return ''
+
 def get_pool_stats():
     '''
     Communicating with cache server through socket, get current cache pool name and cache allocation
@@ -19,16 +38,19 @@ def get_pool_stats():
     sock.connect((host, port))
 
     message = "G:"
+    print(message)
     sock.sendall(message.encode())
 
     # wait the response
     response = sock.recv(1024).decode()
+    print(response)
     sock.close()
     deserialized_map = {}
     pairs = response.split(';')[:-1]
     for pair in pairs:
         key,value = pair.split(':')
         deserialized_map[key] = int(value)
+    
     return deserialized_map
 
 def set_cache_size(workloads, cache_size):

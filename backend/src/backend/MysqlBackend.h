@@ -16,7 +16,7 @@
 #define MYSQL_USERNAME "root"
 #define MYSQL_PASSWORD "zheshimima"
 #define MYSQL_DATABASE "ycsb"
-#define MYSQL_TABLE_PREFIX "usertable"
+#define MYSQL_TABLE_PREFIX "hotspot_5G"
 
 class MySQLBackend : public Backend {
 public:

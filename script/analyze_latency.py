@@ -42,9 +42,7 @@ def bench(cache_sizes, profile_prefix, warmup_times, run_times):
         # NOTE: this needs to be edited for remote caching
         bench_one(cache_size, f'{profile_prefix}_cache{cache_size}M', warmup_times, run_times)
     
-
-def analyze_latency(cache_sizes, profile_prefix):
-
+def density_curves(cache_sizes, profile_prefix):
     # NOTE: this two needs to be tuned for a proper visualization
     bin_width = 5
     y_lim = 20000
@@ -73,6 +71,7 @@ def analyze_latency(cache_sizes, profile_prefix):
     plt.tight_layout()
     plt.savefig(f'{profile_prefix}_latency_density_curves.png')
 
+def latency_cachesize(cache_sizes, profile_prefix):
     # plot latency-hitrate plot with ci
     result_files = [f'{profile_prefix}_cache{cache_size}M_tailLatency.log' for cache_size in cache_sizes]
     # each file has n lines of [p99, p95, p50, hitrate, cache_size]
@@ -82,6 +81,7 @@ def analyze_latency(cache_sizes, profile_prefix):
         with open(file, 'r') as f:
             lines = f.readlines()
             for line in lines:
+            # line = lines[-1]
                 p99, p95, p50, hitrate = line.split(' ')
                 result_data.append([float(p99), float(p95), float(p50), float(hitrate), int(cache_sizes[idx])])
     result_data = np.array(result_data)
@@ -125,12 +125,16 @@ def analyze_latency(cache_sizes, profile_prefix):
     plt.tight_layout()
     plt.savefig(f'{profile_prefix}_latency_hitrate_plot.png')
 
+def analyze_latency(cache_sizes, profile_prefix):
+    density_curves(cache_sizes, profile_prefix)
+    latency_cachesize(cache_sizes, profile_prefix)
+
 if __name__ == '__main__':
     # 0-7G, 256M per unit
     cache_sizes = [i * 256 for i in range(49)]
     profile_prefix = './data/0713/tmdb_10G_sequential'
-    warmup_times = 15
-    run_times = 5
+    warmup_times = 0
+    run_times = 2
     bench(cache_sizes, profile_prefix, warmup_times, run_times)
     analyze_latency(cache_sizes, profile_prefix)
     

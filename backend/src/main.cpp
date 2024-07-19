@@ -13,12 +13,14 @@
 #include <vector>
 #include <mutex>
 #include <atomic>
+#include <cmath>
 
 
 std::atomic<int> g_next_insert_key = 0;
 int main(int argc, char* argv[]) {
     bool cache_enabled = false;
     bool do_prepare = true;
+    bool do_warmup = true;
     bool do_run = true;
     int num_threads = 1;
     int run_times = 0;
@@ -33,14 +35,18 @@ int main(int argc, char* argv[]) {
                 num_threads = std::stoi(argv[i + 1]);
             }
         } else if (arg == "--prepare") {
+            do_warmup = false;
             do_run = false;
         } else if (arg == "--warmup") {
             do_prepare = false;
-            if (i + 1 < argc) {
-                warmup_times = std::stoi(argv[i + 1]);
-            }
+            do_run = false;
+            // warm up until the hit rate change is less than 0.2%
+            // if (i + 1 < argc) {
+            //     warmup_times = std::stoi(argv[i + 1]);
+            // }
         } else if (arg == "--run") {
             do_prepare = false;
+            do_warmup = false;
             if (i + 1 < argc) {
                 run_times = std::stoi(argv[i + 1]);
             }
@@ -75,6 +81,7 @@ int main(int argc, char* argv[]) {
         
         BACKEND backend(0); // therad_id = 0 for same table across threads
         //kidsscc:write to cache in prepare phase
+        // TODO:fix the bug. declaring the client within the if scope will cause a segment fault
         if(cache_enabled){
             CachelibClient unified_cache;
             unified_cache.addpool(UNIFIED_CACHE_POOL);
@@ -86,49 +93,78 @@ int main(int argc, char* argv[]) {
         std::cout << "Preparation done, " << g_next_insert_key << " records inserted." << std::endl;
     }
 
-    int total_times = warmup_times + run_times;
-    // when prepare, warmup and run need to be ignored
-    // do_run = total_times>0?true:do_run;
-    if(!do_run)
-        return 0;
-    while (total_times--) {
-        g_next_insert_key = MAX_RECORDS;
-        std::vector<std::thread> threads;
-        for (int i = 0; i < num_threads; i++) {
-            threads.emplace_back([cache_enabled, i, 
-                                &total_throughput, &total_hit_count, &total_records_executed, 
-                                &total_latencies, &total_latencies_mutex, warmup_times,run_times, total_times]() {
-                //for multithreads, may need to create cache client for every thread, utilizing multiple SHM to realize property
-                CachelibClient cacheclient;
-                cacheclient.addpool(UNIFIED_CACHE_POOL);
-                BACKEND backend(0);
-                if (cache_enabled) {
-                    backend.enable_cache(cacheclient);
-                }
-                
-                if(warmup_times>0 && total_times == (warmup_times + run_times - 1))
-                {
-                    YCSBBenchmark benchmark(backend, true, MAX_RECORDS);
-                    benchmark.run();
-                    double throughput = (double) benchmark.records_executed / (double) benchmark.millis_elapsed * 1000;
-                    
-                    std::vector<unsigned int> latencies = benchmark.latencies_ns;
-                    unsigned int hit_count = backend.hit_count;
-                    unsigned int total_count = benchmark.records_executed;
-                    // aggregate the results
-                    total_throughput += throughput;
-                    total_hit_count += hit_count;
-                    total_records_executed += total_count;
-                    {
-                        std::lock_guard<std::mutex> lock(total_latencies_mutex);
-                        total_latencies.insert(total_latencies.end(), latencies.begin(), latencies.end());
+    if(do_warmup)
+    {
+        double lasthitrate = -1;
+        double hitrate = -1;
+        bool iterate = true;
+        int count = 0;
+        while(lasthitrate<0||(hitrate-lasthitrate)>0.002){
+            
+            count++;
+            lasthitrate = hitrate;
+
+            g_next_insert_key = MAX_RECORDS;
+            std::vector<std::thread> threads;
+            for (int i = 0; i < num_threads; i++){
+                threads.emplace_back([cache_enabled, &iterate,
+                                &total_hit_count, &total_records_executed]() {
+                    CachelibClient cacheclient;
+                    cacheclient.addpool(UNIFIED_CACHE_POOL);
+                    BACKEND backend(0);
+                    if (cache_enabled) {
+                        backend.enable_cache(cacheclient);
                     }
-                }else
-                {
+                    if(iterate)
+                    {
+                        YCSBBenchmark benchmark(backend, true, MAX_RECORDS);
+                        benchmark.run();
+                        total_hit_count += backend.hit_count;
+                        total_records_executed += benchmark.records_executed;
+                        iterate = false;
+                    }
+                    else
+                    {
+                        YCSBBenchmark benchmark(backend);
+                        benchmark.run();
+                        total_hit_count += backend.hit_count;
+                        total_records_executed += benchmark.records_executed;
+                    }
+
+                });
+            }
+            for (auto& thread : threads) {
+                thread.join();
+            }
+            BACKEND backend(0);
+            backend.clean_up();
+            hitrate = (double)total_hit_count/(double)total_records_executed;
+            total_hit_count = 0;
+            total_records_executed = 0;
+            std::cout<<"last hit rate is: "<<lasthitrate<<" and hit rate is: "<<hitrate<<std::endl;
+        }
+        std::cout<<"warmup time is: "<<count<<std::endl;
+    }
+
+    if(do_run)
+    {
+        while(run_times --)
+        {
+            g_next_insert_key = MAX_RECORDS;
+            std::vector<std::thread> threads;
+            for (int i = 0; i < num_threads; i++) {
+                threads.emplace_back([cache_enabled, i, 
+                                    &total_throughput, &total_hit_count, &total_records_executed,
+                                    &total_latencies, &total_latencies_mutex]() {
+                    CachelibClient cacheclient;
+                    cacheclient.addpool(UNIFIED_CACHE_POOL);
+                    BACKEND backend(0);
+                    if (cache_enabled) {
+                        backend.enable_cache(cacheclient);
+                    }
                     YCSBBenchmark benchmark(backend);
                     benchmark.run();
                     double throughput = (double) benchmark.records_executed / (double) benchmark.millis_elapsed * 1000;
-                    
                     std::vector<unsigned int> latencies = benchmark.latencies_ns;
                     unsigned int hit_count = backend.hit_count;
                     unsigned int total_count = benchmark.records_executed;
@@ -151,47 +187,41 @@ int main(int argc, char* argv[]) {
                         std::lock_guard<std::mutex> lock(total_latencies_mutex);
                         total_latencies.insert(total_latencies.end(), latencies.begin(), latencies.end());
                     }
-                }
-            });
+                });
+            }
+            for (auto& thread : threads) {
+                thread.join();
+            }
+
+            BACKEND backend(0);
+            backend.clean_up();
+
+            // save latencies for further inspection
+            if (!profile_file.empty()) {
+                save_vector_to_file(total_latencies, profile_file);
+            }
+            unsigned int avarage_percentile = average(total_latencies);
+            unsigned int total_percentile_99 = percentile(total_latencies, 0.99);
+            unsigned int total_percentile_95 = percentile(total_latencies, 0.95);
+            unsigned int total_percentile_50 = percentile(total_latencies, 0.50);
+            double total_hitrate = (double) total_hit_count / (double) total_records_executed;
+            OUTPUT << "Total Hitrate: " << total_hitrate << std::endl;
+            OUTPUT << "Total Throughput: " << total_throughput << " records/s" << std::endl;
+            OUTPUT << "Total 99th percentile: " << total_percentile_99 << " ns" << std::endl;
+            OUTPUT << "Total 95th percentile: " << total_percentile_95 << " ns" << std::endl;
+            OUTPUT << "Total 50th percentile: " << total_percentile_50 << " ns" << std::endl;
+            OUTPUT << "Total average latency: " << avarage_percentile << " ns" << std::endl;
+
+            if (!profile_file.empty()) {
+                std::ofstream out(profile_file + "_tailLatency.log", std::ios::app);
+                out << total_percentile_99 << " " << total_percentile_95 << " " << total_percentile_50 << " " << total_hitrate << std::endl;
+            }
+            total_throughput = 0;
+            total_hit_count = 0;
+            total_records_executed = 0;
+            total_latencies.clear();
+            total_latencies.shrink_to_fit();
         }
-    
-
-        for (auto& thread : threads) {
-            thread.join();
-        }
-
-        BACKEND backend(0);
-        backend.clean_up();
-
-        // save latencies for further inspection
-        if (!profile_file.empty()) {
-            save_vector_to_file(total_latencies, profile_file);
-        }
-
-        unsigned int avarage_percentile = average(total_latencies);
-
-        unsigned int total_percentile_99 = percentile(total_latencies, 0.99);
-        unsigned int total_percentile_95 = percentile(total_latencies, 0.95);
-        unsigned int total_percentile_50 = percentile(total_latencies, 0.50);
-        double total_hitrate = (double) total_hit_count / (double) total_records_executed;
-        OUTPUT << "Total Hitrate: " << total_hitrate << std::endl;
-        OUTPUT << "Total Throughput: " << total_throughput << " records/s" << std::endl;
-        OUTPUT << "Total 99th percentile: " << total_percentile_99 << " ns" << std::endl;
-        OUTPUT << "Total 95th percentile: " << total_percentile_95 << " ns" << std::endl;
-        OUTPUT << "Total 50th percentile: " << total_percentile_50 << " ns" << std::endl;
-        
-        if (total_times < run_times && !profile_file.empty()) {
-            // save percentiles and hitrate to a file
-            std::ofstream out(profile_file + "_tailLatency.log", std::ios::app);
-            out << total_percentile_99 << " " << total_percentile_95 << " " << total_percentile_50 << " " << total_hitrate << std::endl;
-        }
-
-        total_throughput = 0;
-        total_hit_count = 0;
-        total_records_executed = 0;
-        total_latencies.clear();
-        total_latencies.shrink_to_fit();
     }
-
     return 0;
 }

@@ -90,7 +90,7 @@ void sharedMemCtl(string appName, int no, CacheHitStatistics* chs)
 {
     int SHARED_MEMORY_SIZE = sizeof(shm_stru);
     string localAppName = appName;
-    cout<<"register SHM: "<<localAppName<<endl;
+    cout<<"----- Register SHM: "<<localAppName<<endl;
     // create new shared memory
     int shm_fd = shm_open(localAppName.c_str(), O_CREAT | O_RDWR, 0666);
     if (shm_fd == -1) 
@@ -133,8 +133,9 @@ void sharedMemCtl(string appName, int no, CacheHitStatistics* chs)
 		while(sem_trywait(semaphore)!=0){
 			//can't get semaphore
 			if(waitCount>MAX_WAIT){
-				cout<<"begin sleep\n";
+				cout<<"---------- "<<localAppName<<" Begin Sleeping\n";
 				sem_wait(semaphore);
+				cout<<"---------- "<<localAppName<<" Be Awakened\n";
 				break;
 			}
 			waitCount++;
@@ -184,7 +185,7 @@ void sharedMemCtl(string appName, int no, CacheHitStatistics* chs)
 					while(chs->spinlockForRate.test_and_set(memory_order_acquire));
 					double t_totalGet = 0;
 					double t_totalHit = 0;
-					for(int i = 0; i<chs->totalGet.size(); i++){
+					for(int i = 0; i<int(chs->totalGet.size()); i++){
 						t_totalGet += chs->totalGet[i];
 						chs->totalGet[i] = 0;
 						t_totalHit += chs->hitGet[i];
@@ -212,7 +213,7 @@ void sharedMemCtl(string appName, int no, CacheHitStatistics* chs)
 	sem_unlink(localAppName.c_str());
 	sem_unlink(sem_server.c_str());
 	sem_unlink(sem_getback.c_str());
-	cout<<"close SHM: "<<localAppName<<endl;
+	cout<<"----- Close SHM: "<<localAppName<<endl;
 	return;
 }
 

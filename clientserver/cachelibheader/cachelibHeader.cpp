@@ -48,24 +48,25 @@ void cacheConfigure(CacheConfig& config)
 
 void initializeCache(int cache_size, int pool_size)
 {
-    cacheSize = cache_size<0?cacheSize:(size_t)cache_size * (1024 * 1024 * 1024);
-    poolSize = pool_size<0?poolSize:(size_t)pool_size * (1024 * 1024);
-    std::cout<<"cache size is: "<<cacheSize<<std::endl;
-    std::cout<<"pool size is: "<<poolSize<<std::endl;
+    cacheSize = cache_size<0?cacheSize:(size_t)cache_size * GB_SIZE;
+    poolSize = pool_size<0?poolSize:(size_t)pool_size * MB_SIZE;
+    std::cout<<"----- Cache Size: "<<cacheSize/GB_SIZE<<" GB "<<std::endl;
+    std::cout<<"----- Each Pool Size: "<<poolSize/MB_SIZE<<" MB "<<std::endl;
     CacheConfig config;
     cacheConfigure(config);
     gCache_ = std::make_unique<Cache>(config);
-    std::cout<<"Create Cache successfully\n";
     #if CREATE_DEFAULT_POOL
+        std::cout<<"----- Global Pool Enabled\n";
         defaultPool_ = gCache_->addPool("default_",defaultPoolSize);
         std::cout<<"defaultPool_ is: "<<(size_t)defaultPoolSize<<std::endl;
     #endif
+    std::cout<<"----- Create Cache Successfully\n";
 }
 
 void destroyCache()
 {
     gCache_.reset();
-    std::cout<<"destroy Cache successfully\n";
+    std::cout<<"----- Destroy Cache Successfully\n";
 }
 
 int addpool_(std::string poolName)
@@ -75,7 +76,7 @@ int addpool_(std::string poolName)
     #endif
     cachelib::PoolId poolId = gCache_->getPoolId(poolName);
     if(poolId==-1){
-        std::cout<<"pool size is: "<<poolSize<<std::endl;
+        // std::cout<<"pool size is: "<<poolSize<<std::endl;
         poolId = gCache_->addPool(poolName, poolSize);
     }
     return poolId;
@@ -132,7 +133,7 @@ void resizePool(std::string poolName, size_t newSize){
 	PoolId pid = gCache_->getPoolId(poolName);
 	PoolStats poolStat = gCache_->getPoolStats(pid);
 	size_t currSize = poolStat.poolSize;
-	std::cout<<"change "<<poolName<<" from "<<currSize<<" to "<<newSize<<std::endl;
+	std::cout<<"----- Change "<<poolName<<" From "<<currSize/MB_SIZE<<" MB To "<<newSize/MB_SIZE<<" MB "<<std::endl;
 	if(newSize>currSize){
 		//growPool
 		gCache_->growPool(pid, newSize-currSize);

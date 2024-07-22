@@ -1,7 +1,7 @@
 #include "YCSBBenchmark.h"
 #include <thread>
 
-YCSBBenchmark::YCSBBenchmark(Backend& backend, bool WhetherSequence, unsigned int CURR_QUERY)
+YCSBBenchmark::YCSBBenchmark(Backend& backend, unsigned int sequential_startidx, bool WhetherSequence, unsigned int CURR_QUERY)
     : Benchmark(backend) { 
         //kidsscc: reinitialize max_query
         max_query = CURR_QUERY;
@@ -18,7 +18,7 @@ YCSBBenchmark::YCSBBenchmark(Backend& backend, bool WhetherSequence, unsigned in
             #elif DISTRIBUTION == DISTRIBUTION_UNIFORM
                 uniform_distrib = std::uniform_int_distribution<int>(0, max_records - 1);
             #elif DISTRIBUTION == DISTRIBUTION_SEQUENTIAL
-                sequential_counter = 0;
+                sequential_counter = sequential_startidx;
             #elif DISTRIBUTION == DISTRIBUTION_HOTSPOT
                 std::vector<double> intervals = {0, HOTSPOT_PROPORTION * max_records, double(max_records)};
                 std::vector<double> weights = {HOTSPOT_ALPHA, 1 - HOTSPOT_ALPHA};

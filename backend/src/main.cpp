@@ -24,7 +24,6 @@ int main(int argc, char* argv[]) {
     bool do_run = true;
     int num_threads = 1;
     int run_times = 0;
-    int warmup_times = 0;
     std::string profile_file = "";
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
@@ -39,7 +38,7 @@ int main(int argc, char* argv[]) {
             do_run = false;
         } else if (arg == "--warmup") {
             do_prepare = false;
-            do_run = false;
+            // do_run = false;
             // warm up until the hit rate change is less than 0.2%
             // if (i + 1 < argc) {
             //     warmup_times = std::stoi(argv[i + 1]);
@@ -72,6 +71,7 @@ int main(int argc, char* argv[]) {
 
     // aggregate the results of multiple threads
     double total_throughput = 0;
+    double total_usedtime = 0;
     unsigned int total_hit_count = 0;
     unsigned int total_records_executed = 0;
     std::vector<unsigned int> total_latencies;
@@ -93,6 +93,7 @@ int main(int argc, char* argv[]) {
         std::cout << "Preparation done, " << g_next_insert_key << " records inserted." << std::endl;
     }
 
+    unsigned int sequential_startidx = 0;
     if(do_warmup)
     {
         double lasthitrate = -1;
@@ -108,7 +109,7 @@ int main(int argc, char* argv[]) {
             std::vector<std::thread> threads;
             for (int i = 0; i < num_threads; i++){
                 threads.emplace_back([cache_enabled, &iterate,
-                                &total_hit_count, &total_records_executed]() {
+                                &total_hit_count, &total_records_executed, &sequential_startidx]() {
                     CachelibClient cacheclient;
                     cacheclient.addpool(UNIFIED_CACHE_POOL);
                     BACKEND backend(0);
@@ -117,17 +118,19 @@ int main(int argc, char* argv[]) {
                     }
                     if(iterate)
                     {
-                        YCSBBenchmark benchmark(backend, true, MAX_RECORDS);
+                        YCSBBenchmark benchmark(backend, sequential_startidx, true, MAX_RECORDS);
                         benchmark.run();
                         total_hit_count += backend.hit_count;
                         total_records_executed += benchmark.records_executed;
+                        sequential_startidx = (sequential_startidx + MAX_RECORDS) % MAX_RECORDS;
                         iterate = false;
                     }
                     else
                     {
-                        YCSBBenchmark benchmark(backend);
+                        YCSBBenchmark benchmark(backend, sequential_startidx);
                         benchmark.run();
                         total_hit_count += backend.hit_count;
+                        sequential_startidx = (sequential_startidx + MAX_QUERIES) % MAX_RECORDS;
                         total_records_executed += benchmark.records_executed;
                     }
 
@@ -154,15 +157,15 @@ int main(int argc, char* argv[]) {
             std::vector<std::thread> threads;
             for (int i = 0; i < num_threads; i++) {
                 threads.emplace_back([cache_enabled, i, 
-                                    &total_throughput, &total_hit_count, &total_records_executed,
-                                    &total_latencies, &total_latencies_mutex]() {
+                                    &total_throughput, &total_usedtime, &total_hit_count, &total_records_executed,
+                                    &total_latencies, &total_latencies_mutex, &sequential_startidx]() {
                     CachelibClient cacheclient;
                     cacheclient.addpool(UNIFIED_CACHE_POOL);
                     BACKEND backend(0);
                     if (cache_enabled) {
                         backend.enable_cache(cacheclient);
                     }
-                    YCSBBenchmark benchmark(backend);
+                    YCSBBenchmark benchmark(backend, sequential_startidx);
                     benchmark.run();
                     double throughput = (double) benchmark.records_executed / (double) benchmark.millis_elapsed * 1000;
                     std::vector<unsigned int> latencies = benchmark.latencies_ns;
@@ -181,6 +184,7 @@ int main(int argc, char* argv[]) {
 
                     // aggregate the results
                     total_throughput += throughput;
+                    total_usedtime += benchmark.millis_elapsed;
                     total_hit_count += hit_count;
                     total_records_executed += total_count;
                     {
@@ -205,22 +209,26 @@ int main(int argc, char* argv[]) {
             unsigned int total_percentile_95 = percentile(total_latencies, 0.95);
             unsigned int total_percentile_50 = percentile(total_latencies, 0.50);
             double total_hitrate = (double) total_hit_count / (double) total_records_executed;
+            total_usedtime = total_usedtime/num_threads;
             OUTPUT << "Total Hitrate: " << total_hitrate << std::endl;
             OUTPUT << "Total Throughput: " << total_throughput << " records/s" << std::endl;
             OUTPUT << "Total 99th percentile: " << total_percentile_99 << " ns" << std::endl;
             OUTPUT << "Total 95th percentile: " << total_percentile_95 << " ns" << std::endl;
             OUTPUT << "Total 50th percentile: " << total_percentile_50 << " ns" << std::endl;
             OUTPUT << "Total average latency: " << avarage_percentile << " ns" << std::endl;
+            OUTPUT << "Total Used Time: " << total_usedtime << " ms" << std::endl;
 
             if (!profile_file.empty()) {
                 std::ofstream out(profile_file + "_tailLatency.log", std::ios::app);
                 out << total_percentile_99 << " " << total_percentile_95 << " " << total_percentile_50 << " " << total_hitrate << std::endl;
             }
             total_throughput = 0;
+            total_usedtime = 0;
             total_hit_count = 0;
             total_records_executed = 0;
             total_latencies.clear();
             total_latencies.shrink_to_fit();
+            sequential_startidx = (sequential_startidx + MAX_QUERIES) % MAX_RECORDS;
         }
     }
     return 0;

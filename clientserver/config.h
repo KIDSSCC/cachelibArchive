@@ -1,6 +1,11 @@
 #ifndef CS_CONFIG
 #define CS_CONFIG
 
+//for util
+#define GB_SIZE ((size_t)1024 * 1024 * 1024)
+#define MB_SIZE ((size_t)1024 * 1024)
+#define KB_SIZE ((size_t)1024)
+
 // for cachelib header
 #define CACHE_SIZE (size_t)12 * 1024 * 1024 * 1024
 #define REDUNDARY_SIZE (size_t)4 * 1024 * 1024

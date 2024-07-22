@@ -5,7 +5,7 @@ YCSBBenchmark::YCSBBenchmark(Backend& backend, bool WhetherSequence, unsigned in
     : Benchmark(backend) { 
         //kidsscc: reinitialize max_query
         max_query = CURR_QUERY;
-        
+        latencies_ns.reserve(max_query);
         whether_sequence = WhetherSequence;
 
         name = "YCSB";

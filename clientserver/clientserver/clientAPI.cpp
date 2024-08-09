@@ -3,25 +3,28 @@
 
 CachelibClient::CachelibClient():gen(rd()), dis(0.0, 1.0)
 {
-    cout<<"------shared memory------\n";
-	/*
-    this->msgid=msgget(MSG_KEY, 0666);
-    if (this->msgid == -1) 
-    {
-        perror("msgget");
-        cerr<<"MQ not exist,Server is offline\n";
-        exit(EXIT_FAILURE);
-    }
-	*/
     this->getHit=0;
+	this->shmId = "";
 }
 CachelibClient::~CachelibClient(){
-	//锁资源
-	while(sem_trywait(this->semaphore_Server)!=0);
-	//准备要存入共享内存的数据
-	shm_stru* message=static_cast<shm_stru*>(this->shared_memory);
-	message->ctrl=SIG_CLOSE;
-	sem_post(this->semaphore);
+	if(this->shmId != ""){
+		while(sem_trywait(this->semaphore_Server)!=0);
+		//prepare SIG_CLOSE
+		shm_stru* message=static_cast<shm_stru*>(this->shared_memory);
+		message->ctrl=SIG_CLOSE;
+		sem_post(this->semaphore);
+
+    	// release shared memory
+    	int SHARED_MEMORY_SIZE = sizeof(shm_stru);
+    	munmap(this->shared_memory, SHARED_MEMORY_SIZE);
+    	close(this->shm_fd);
+    	// release semaphore
+    	string sem_server = this->shmId + "_Server";
+    	string sem_getback = this->shmId + "_getback";
+    	sem_close(this->semaphore);
+		sem_close(this->semaphore_Server);
+		sem_close(this->semaphore_GetBack);
+	}
 }
 
 void CachelibClient::prepare_shm(string appName)
@@ -66,6 +69,7 @@ void CachelibClient::prepare_shm(string appName)
 
 int CachelibClient::addpool(string poolName)
 {
+    cout<<"------shared memory------\n";
 	int client_socket = socket(AF_INET, SOCK_STREAM, 0);
 	if(client_socket == -1){
 		cout<<"Error: Failed to create socket\n";
@@ -77,7 +81,7 @@ int CachelibClient::addpool(string poolName)
 	inet_pton(AF_INET, "127.0.0.1", &server_address.sin_addr);
 	if (connect(client_socket, (struct sockaddr *)&server_address, sizeof(server_address)) == -1){
 		cout<<"Error: Failed to connect to server\n";
-        	exit(EXIT_FAILURE);
+        exit(EXIT_FAILURE);
 	}
 	string message = "A:" + poolName;
 	//std::cout<<"send message is: "<<message<<std::endl;
@@ -101,12 +105,10 @@ int CachelibClient::addpool(string poolName)
 	//std::cout<<"client recv is: "<<recvInfo<<std::endl;
 	size_t spacePosition = recvInfo.find(' ');
 	this->pid = stoi(recvInfo.substr(0, spacePosition));
-	string shmId = recvInfo.substr(spacePosition+1);
+	this->shmId = recvInfo.substr(spacePosition+1);
 
 	this->prefix = poolName + "_";
-	//std::cout<<"before prepare_shm\n";
-	prepare_shm(shmId);
-	//std::cout<<"after prepare_shm\n";
+	prepare_shm(this->shmId);
 	return this->pid;
 }
 

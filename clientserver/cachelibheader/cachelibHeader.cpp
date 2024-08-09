@@ -9,7 +9,7 @@ PoolId defaultPool_;
 size_t cacheSize = CACHE_SIZE + REDUNDARY_SIZE;
 size_t poolSize = POOL_SIZE;
 
-size_t defaultPoolSize = DEFAULT_POOL_SIZE;
+size_t defaultPoolSize = CACHE_SIZE;
 
 
 NavyConfig getNvmConfig(const std::string& cacheDir){
@@ -50,15 +50,15 @@ void initializeCache(int cache_size, int pool_size)
 {
     cacheSize = cache_size<0?cacheSize:(size_t)cache_size * GB_SIZE;
     poolSize = pool_size<0?poolSize:(size_t)pool_size * MB_SIZE;
-    std::cout<<"----- Cache Size: "<<cacheSize/GB_SIZE<<" GB "<<std::endl;
-    std::cout<<"----- Each Pool Size: "<<poolSize/MB_SIZE<<" MB "<<std::endl;
+    std::cout << "----- Cache Size: " << cacheSize / MB_SIZE << " MB " << std::endl;
+    std::cout << "----- Each Pool Size: "<< poolSize / MB_SIZE << " MB " << std::endl;
     CacheConfig config;
     cacheConfigure(config);
     gCache_ = std::make_unique<Cache>(config);
     #if CREATE_DEFAULT_POOL
         std::cout<<"----- Global Pool Enabled\n";
         defaultPool_ = gCache_->addPool("default_",defaultPoolSize);
-        std::cout<<"defaultPool_ is: "<<(size_t)defaultPoolSize<<std::endl;
+        std::cout<<"----- Global Pool Size: "<< defaultPoolSize / MB_SIZE << "MB" << std::endl;
     #endif
     std::cout<<"----- Create Cache Successfully\n";
 }
@@ -125,6 +125,10 @@ PoolStats getPoolStat(PoolId pid){
 
 size_t getPoolSizeFromName(std::string poolName){
 	PoolId pid = gCache_->getPoolId(poolName);
+    if(pid == -1)
+    {
+        std::cout<<"----------Error: pool "<< poolName <<" not exists\n";
+    }
 	PoolStats pstats = getPoolStat(pid);
 	return pstats.poolSize;
 }

@@ -1,7 +1,10 @@
 import socket
 import pickle
+import time
+import subprocess
 
 
+cgroup_path = '/sys/fs/cgroup/blkio/'
 host = '127.0.0.1'
 port = 54000
 
@@ -38,12 +41,12 @@ def get_pool_stats():
     sock.connect((host, port))
 
     message = "G:"
-    print(message)
+    # print(message)
     sock.sendall(message.encode())
 
     # wait the response
     response = sock.recv(1024).decode()
-    print(response)
+    # print(response)
     sock.close()
     deserialized_map = {}
     pairs = response.split(';')[:-1]
@@ -52,6 +55,26 @@ def get_pool_stats():
         deserialized_map[key] = int(value)
     
     return deserialized_map
+
+
+def clear_groups():
+    command = 'ls -d ' + cgroup_path + '*/'
+    print(command)
+    result = subprocess.run(command, shell=True, text=True, capture_output=True)
+    stdout = result.stdout
+    if 'cannot' in stdout or "" == stdout:
+        # no groups
+        #print('no groups need to clear')
+        return
+    all_groups = stdout.strip().split('\n')
+    all_groups = [line.replace(cgroup_path, "")[:-1] for line in all_groups]
+    num = len(all_groups)
+    for group in all_groups:
+        delete_command = 'cgdelete -r blkio:' + group
+        print(delete_command)
+        subprocess.run(delete_command, shell=True, text=True, capture_output=False)
+    #print('clear {} groups'.format(num))
+
 
 def set_cache_size(workloads, cache_size):
     '''
@@ -76,9 +99,35 @@ def set_cache_size(workloads, cache_size):
     sock.sendall(serialized_data.encode())
     sock.close()
 
+
+def set_bandwidth(procs, bandwidths):
+    # total is 100
+    for i in range(len(procs)):
+        group_name = 'group_' + str(procs[i])
+        # check the group exist
+        check_command = 'cgget -g blkio:' + group_name
+        # print(check_command)
+        check_res = subprocess.run(check_command, shell=True, text=True, capture_output=True)
+        if 'cannot' in check_res.stderr:
+            # group non-exist,need to create new group
+            print('{} non-exist'.format(group_name))
+            # create new group
+            create_command = 'cgcreate -g blkio:' + group_name
+            # print(create_command)
+            subprocess.run(create_command, shell=True, text=True, capture_output=False)
+            # add proc to group
+            classify_command = 'cgclassify -g blkio:' + group_name + ' ' + str(procs[i])
+            # print(classify_command)
+            subprocess.run(classify_command, shell=True, text=True, capture_output=False)
+        # adjust the weigh
+        adjust_command = 'cgset -r blkio.throttle.read_bps_device="8:16 ' + str(bandwidths[i] * 102400) + '" ' + group_name
+        # print(adjust_command)
+        subprocess.run(adjust_command, shell=True, text=True, capture_output=False)
+
+
 def receive_config():
     '''
-    Wait to receive the current resource config
+    Old version, Wait to receive the current resource config
 
     Args:
 
@@ -108,7 +157,7 @@ def receive_config():
 
 def send_config(new_config):
     '''
-    Send the new config
+    Old version, Send the new config
 
     Args:
         list: [
@@ -141,8 +190,17 @@ class config_management:
         curr_config.append(pool_name)
         curr_config.append(pool_size)
         #TODO: cache hit rate
-
+        hitrate_log = ['/home/md/SHMCachelib/bin/' + name + '_hitrate.log' for name in pool_name]
+        hitrates = []
+        for log in hitrate_log:
+            hitrates.append(get_last_line(log))
+        curr_config.append(hitrates)
         #TODO: tail latency
+        latency_log = ['/home/md/SHMCachelib/bin/' + name + '_tailLatency.log' for name in pool_name]
+        latencies = []
+        for log in latency_log:
+            latencies.append(get_last_line(log))
+        curr_config.append(latencies)
 
         return curr_config
 
@@ -150,4 +208,8 @@ class config_management:
         set_cache_size(new_config[0], new_config[1])
 
 if __name__ == '__main__':
-    pass
+    time.sleep(10)
+    cs = config_management()
+    curr = cs.receive_config()
+    for item in curr:
+        print(item)

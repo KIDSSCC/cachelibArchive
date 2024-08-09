@@ -168,9 +168,6 @@ void sharedMemCtl(string appName, int no, CacheHitStatistics* chs)
                 sem_post(semaphore_Server);
 	    	case SIG_CLOSE:
 				sem_post(semaphore_Server);
-				while(slockForRecord.test_and_set(memory_order_acquire));
-				poolRecord[chs->poolName].first--;
-				slockForRecord.clear(memory_order_release);
 
 				available = false;
 				break;
@@ -205,14 +202,23 @@ void sharedMemCtl(string appName, int no, CacheHitStatistics* chs)
 			}
 		#endif
     }
+	
+	// release shared memory and semaphore,  file_descriptor specially,
 	munmap(shared_memory, SHARED_MEMORY_SIZE);
+	close(shm_fd);
 	shm_unlink(localAppName.c_str());
+
 	sem_close(semaphore);
 	sem_close(semaphore_Server);
 	sem_close(semaphore_GetBack);
 	sem_unlink(localAppName.c_str());
 	sem_unlink(sem_server.c_str());
 	sem_unlink(sem_getback.c_str());
+
+	while(slockForRecord.test_and_set(memory_order_acquire));
+	poolRecord[chs->poolName].first--;
+	slockForRecord.clear(memory_order_release);
+
 	cout<<"----- Close SHM: "<<localAppName<<endl;
 	return;
 }

@@ -118,7 +118,7 @@ def set_bandwidth(procs, bandwidths):
         check_res = subprocess.run(check_command, shell=True, text=True, capture_output=True)
         if 'cannot' in check_res.stderr:
             # group non-exist,need to create new group
-            #print('{} non-exist'.format(group_name))
+            print('{} non-exist'.format(group_name))
             # create new group
             create_command = 'cgcreate -g blkio:' + group_name
             # print(create_command)
@@ -128,15 +128,11 @@ def set_bandwidth(procs, bandwidths):
             # print(classify_command)
             subprocess.run(classify_command, shell=True, text=True, capture_output=False)
         # adjust the weigh
-        adjust_command = 'cgset -r blkio.throttle.read_bps_device="8:16 ' + str(bandwidths[i] * 10485760) + '" ' + group_name
+        adjust_command = 'cgset -r blkio.throttle.read_bps_device="8:16 ' + str(bandwidths[i] * 102400) + '" ' + group_name
         # print(adjust_command)
         subprocess.run(adjust_command, shell=True, text=True, capture_output=False)
 
-
-if __name__ == '__main__':
-    # delete all old group
-    clear_groups()
-    
+def test_cache_size():
     addpool('tmdb')
     addpool('mysql')
     addpool('leveldb')
@@ -161,3 +157,31 @@ if __name__ == '__main__':
         curr_pool_name.append(key)
         curr_pool_size.append(curr_pool_stats[key])
         print('{} -> {}'.format(key, curr_pool_stats[key]))
+
+def test_memory_bandwidth():
+    # delete all old group
+    clear_groups()
+
+    fio_script = ['test1.fio', 'test2.fio']
+    fio_command = [['fio', script] for script in fio_script]
+
+    results = []
+    for command in fio_command:
+        results.append(subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True))
+
+    tasks = [proc.pid for proc in results]
+    target_bd = [3]
+    # set_bandwidth(tasks, target_bd)
+
+
+    for res in results:
+        stdout, stderr = res.communicate()
+        print(stdout)
+        # print(stderr)
+        print('----------')
+
+
+if __name__ == '__main__':
+    print('hello, world')
+
+

@@ -25,15 +25,11 @@ private:
 
     int shm_fd;
     void* shared_memory;
+	string shmId;
     sem_t* semaphore;
     sem_t* semaphore_Server;
     sem_t* semaphore_GetBack;
 
-    //用于创建缓存池操作同步机制的信号量
-    void* addpool_shared_memory;
-    sem_t* sema_client;
-    sem_t* sema_write_right;
-    sem_t* sema_add_pool_back;
     //接收get操作返回结果
     char getValue[SHM_VALUE_SIZE];
 public:

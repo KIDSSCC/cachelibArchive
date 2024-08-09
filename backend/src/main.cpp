@@ -20,7 +20,7 @@ std::atomic<int> g_next_insert_key = 0;
 int main(int argc, char* argv[]) {
     bool cache_enabled = false;
     bool do_prepare = true;
-    bool do_warmup = true;
+    bool do_warmup = false;
     bool do_run = true;
     int num_threads = 1;
     int run_times = 0;
@@ -38,6 +38,7 @@ int main(int argc, char* argv[]) {
             do_run = false;
         } else if (arg == "--warmup") {
             do_prepare = false;
+			do_warmup = true;
             // do_run = false;
             // warm up until the hit rate change is less than 0.2%
             // if (i + 1 < argc) {
@@ -45,7 +46,6 @@ int main(int argc, char* argv[]) {
             // }
         } else if (arg == "--run") {
             do_prepare = false;
-            do_warmup = false;
             if (i + 1 < argc) {
                 run_times = std::stoi(argv[i + 1]);
             }
@@ -62,7 +62,7 @@ int main(int argc, char* argv[]) {
                       << "  --prepare: only prepare the database\n"
                       << "  --warmup <num>: run the benchmark for <num> times as warmup\n"
                       << "  --run <num>: run the benchmark for <num> times\n"
-                      << "  --profle <file>: dump the latencies to a file\n"
+                      << "  --profile <file>: dump the latencies to a file\n"
                       << "  --help: show this message\n"
                       << "if no options are provided, both preparation and benchmark will be run\n";
             return 0;
@@ -70,10 +70,10 @@ int main(int argc, char* argv[]) {
     }
 
     // aggregate the results of multiple threads
-    double total_throughput = 0;
-    double total_usedtime = 0;
-    unsigned int total_hit_count = 0;
-    unsigned int total_records_executed = 0;
+    atomic<double> total_throughput = 0;
+    atomic<double> total_usedtime = 0;
+    atomic<unsigned int> total_hit_count = 0;
+    atomic<unsigned int> total_records_executed = 0;
     std::vector<unsigned int> total_latencies;
     std::mutex total_latencies_mutex;
 
@@ -100,7 +100,7 @@ int main(int argc, char* argv[]) {
         double hitrate = -1;
         bool iterate = true;
         int count = 0;
-        while(lasthitrate<0||(hitrate-lasthitrate)>0.002){
+        while(lasthitrate<0||std::fabs(hitrate-lasthitrate)>0.005){
             
             count++;
             lasthitrate = hitrate;
@@ -111,14 +111,14 @@ int main(int argc, char* argv[]) {
                 threads.emplace_back([cache_enabled, &iterate,
                                 &total_hit_count, &total_records_executed, &sequential_startidx]() {
                     CachelibClient cacheclient;
-                    cacheclient.addpool(UNIFIED_CACHE_POOL);
                     BACKEND backend(0);
                     if (cache_enabled) {
+                    	cacheclient.addpool(UNIFIED_CACHE_POOL);
                         backend.enable_cache(cacheclient);
                     }
                     if(iterate)
                     {
-                        YCSBBenchmark benchmark(backend, sequential_startidx, true, MAX_RECORDS);
+                        YCSBBenchmark benchmark(backend, sequential_startidx, -1, true, MAX_RECORDS);
                         benchmark.run();
                         total_hit_count += backend.hit_count;
                         total_records_executed += benchmark.records_executed;
@@ -159,13 +159,13 @@ int main(int argc, char* argv[]) {
                 threads.emplace_back([cache_enabled, i, 
                                     &total_throughput, &total_usedtime, &total_hit_count, &total_records_executed,
                                     &total_latencies, &total_latencies_mutex, &sequential_startidx]() {
-                    CachelibClient cacheclient;
-                    cacheclient.addpool(UNIFIED_CACHE_POOL);
+					CachelibClient cacheclient;
                     BACKEND backend(0);
                     if (cache_enabled) {
-                        backend.enable_cache(cacheclient);
+                    	cacheclient.addpool(UNIFIED_CACHE_POOL);
+						backend.enable_cache(cacheclient);
                     }
-                    YCSBBenchmark benchmark(backend, sequential_startidx);
+                    YCSBBenchmark benchmark(backend, sequential_startidx, i);
                     benchmark.run();
                     double throughput = (double) benchmark.records_executed / (double) benchmark.millis_elapsed * 1000;
                     std::vector<unsigned int> latencies = benchmark.latencies_ns;
@@ -201,10 +201,10 @@ int main(int argc, char* argv[]) {
             backend.clean_up();
 
             // save latencies for further inspection
-            if (!profile_file.empty()) {
-                save_vector_to_file(total_latencies, profile_file);
-            }
-            unsigned int avarage_percentile = average(total_latencies);
+            // if (!profile_file.empty()) {
+            //     save_vector_to_file(total_latencies, profile_file);
+            // }
+            unsigned int average_percentile = average(total_latencies);
             unsigned int total_percentile_99 = percentile(total_latencies, 0.99);
             unsigned int total_percentile_95 = percentile(total_latencies, 0.95);
             unsigned int total_percentile_50 = percentile(total_latencies, 0.50);
@@ -215,13 +215,28 @@ int main(int argc, char* argv[]) {
             OUTPUT << "Total 99th percentile: " << total_percentile_99 << " ns" << std::endl;
             OUTPUT << "Total 95th percentile: " << total_percentile_95 << " ns" << std::endl;
             OUTPUT << "Total 50th percentile: " << total_percentile_50 << " ns" << std::endl;
-            OUTPUT << "Total average latency: " << avarage_percentile << " ns" << std::endl;
+            OUTPUT << "Total average latency: " << average_percentile << " ns" << std::endl;
             OUTPUT << "Total Used Time: " << total_usedtime << " ms" << std::endl;
 
             if (!profile_file.empty()) {
                 std::ofstream out(profile_file + "_tailLatency.log", std::ios::app);
-                out << total_percentile_99 << " " << total_percentile_95 << " " << total_percentile_50 << " " << total_hitrate << std::endl;
+                out << total_percentile_99 << " " 
+					<< total_percentile_95 << " " 
+					<< total_percentile_50 << " " 
+					<< average_percentile << " " 
+					<< total_throughput << " " 
+					<< total_hitrate << std::endl;
             }
+            
+            // if(!profile_file.empty()) {
+            //     std::ofstream out(profile_file + "_tailLatency.log", std::ios::app);
+            //     out << total_percentile_99 << std::endl;
+            // }
+            // if(!profile_file.empty()) {
+            //     std::ofstream out(profile_file + "_hitrate.log", std::ios::app);
+            //     out << total_hitrate << std::endl;
+            // }
+
             total_throughput = 0;
             total_usedtime = 0;
             total_hit_count = 0;

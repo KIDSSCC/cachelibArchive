@@ -9,11 +9,12 @@
 #include <random>
 #include <ctime>
 #include <numeric>
+#include <functional>
 
 class YCSBBenchmark : public Benchmark
 {
 public:
-    YCSBBenchmark(Backend& backend, unsigned int sequential_startidx = 0, bool WhetherSequence=false, unsigned int CURR_QUERY = MAX_QUERIES);
+    YCSBBenchmark(Backend& backend, unsigned int sequential_startidx = 0, int threadId = -1, bool WhetherSequence=false, unsigned int CURR_QUERY = MAX_QUERIES);
     ~YCSBBenchmark() = default;
     bool create_database();
     bool load_database();
@@ -54,4 +55,5 @@ public:
 
     bool whether_sequence = false;
     unsigned int unified_sequential_counter = 0;
+	int threadId = -1;
 };

@@ -16,4 +16,6 @@ bin/
 schedule/__pycache__/
 
 startup.sh
+tags
+*.fio
 

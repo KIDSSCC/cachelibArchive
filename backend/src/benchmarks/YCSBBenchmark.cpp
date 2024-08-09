@@ -1,15 +1,24 @@
 #include "YCSBBenchmark.h"
 #include <thread>
 
-YCSBBenchmark::YCSBBenchmark(Backend& backend, unsigned int sequential_startidx, bool WhetherSequence, unsigned int CURR_QUERY)
+YCSBBenchmark::YCSBBenchmark(Backend& backend, unsigned int sequential_startidx, int threadId, bool WhetherSequence, unsigned int CURR_QUERY)
     : Benchmark(backend) { 
         //kidsscc: reinitialize max_query
         max_query = CURR_QUERY;
         latencies_ns.reserve(max_query);
         whether_sequence = WhetherSequence;
+		this->threadId = threadId;
 
         name = "YCSB";
-        generator = std::default_random_engine(std::time(0));
+
+        std::thread::id thread_id = std::this_thread::get_id();
+        std::hash<std::thread::id> hash_func;
+        size_t hashed_id = hash_func(thread_id);
+        size_t seed = static_cast<size_t>(std::time(0))
+                      ^ (hashed_id + 0x9e3779b9
+                      + (static_cast<size_t>(std::time(0)) << 6)
+                      + (static_cast<size_t>(std::time(0)) >> 2));
+        generator = std::default_random_engine(seed);
 
         if(!whether_sequence)
         {

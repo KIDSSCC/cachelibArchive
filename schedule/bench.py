@@ -141,57 +141,82 @@ def prepare(name):
     process = subprocess.Popen([name] + args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     return process
 
-def run(name):
-    warmup_times = 5
-    run_times = 6
-    profile_file = name
-    args = ['--cache', '--warmup', str(warmup_times), '--run', str(run_times), '--profile', profile_file]
+def warmup(name):
+    args = ['--cache', '--warmup']
     process = subprocess.Popen([name] + args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     return process
 
+def run(name):
+    run_times = 3
+    profile_file = name
+    args = ['--cache', '--run', str(run_times), '--profile', profile_file]
+    process = subprocess.Popen([name] + args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    return process
+
+def warmup_and_run(name):
+    run_times = 5
+    profile_file = name
+    print('----- profile_file: {}'.format(profile_file))
+    args = ['--cache', '--warmup', '--run', str(run_times), '--profile', profile_file]
+    process = subprocess.Popen([name] + args, stdout=None, stderr=None)
+    return process
+
+def pool_resize(names):
+    # TODO: cache size schedule
+    time.sleep(10)
+    print('----- Begin To Schedule')
+    allocate = [25, 0, 24, 21, 43]
+    set_cache_size(names, allocate)
+    time.sleep(5)
+    print('----- End To Schedule')
+    p_map = get_pool_stats()
+    for key in p_map.keys():
+        print('---------- {}->{}'.format(key, p_map[key]))
+
+
 if __name__ == '__main__':
-    par_path = 'bin/'
+    par_path = 'Build/'
     app = [
-        'mysql_5G_hotspot',
-        'mysql_5G_uniform',
-        'tmdb_5G_hotspot',
-        'tmdb_10G_sequential'
+        'YCSB_CPP'
     ]
-    app = [par_path + wl for wl in app]
+    absolute_path = [par_path + wl for wl in app]
 
     # server process
     # server_process = subprocess.Popen(f'./Build/Server', shell=True)
     # time.sleep(5)
     # # prepare
     # prepare_procs = []
-    # for wl in app:
+    # for wl in absolute_path:
     #     prepare_procs.append(prepare(wl))
     # for p in prepare_procs:
     #     p.wait()
 
-    
+    # warm up
+    warm_procs = []
+    for wl in absolute_path:
+        warm_procs.append(warmup(wl))
+    for p in warm_procs:
+        stdout, stderr = p.communicate()
+    print('----- All Warmup Finished')
 
     # run
     run_procs = []
-    for wl in app:
+    for wl in absolute_path:
         run_procs.append(run(wl))
-
-    # TODO: cache size schedule
-    time.sleep(5)
-    print('begin to schedule')
-    pool = [
-        'mysql_hotspot_5G',
-        'mysql_uniform_5G',
-        'tmdb_hotspot_5G',
-        'tmdb_sequential_10G'
-    ]
-    allocate = [90, 100, 2, 0]
-    # p_map = get_pool_stats()
-    # for key in p_map.keys():
-    #     print('{}->{}'.format(key, p_map[key]))
-    set_cache_size(pool, allocate)
-    print('end to schedule')
+    clear_groups()
+    pids = [proc.pid for proc in run_procs]
+    target_bd = [1]
+    # set_bandwidth(pids, target_bd)
     for p in run_procs:
-        p.wait()
+        outs, errs = p.communicate()
+        print(outs.decode('utf-8'))
+        print(type(errs))
 
+    # # warmup and run
+    # procs = []
+    # for wl in absolute_path:
+    #     procs.append(warmup_and_run(wl))
+    # pool_resize(app)
+    # for p in procs:
+    #     stdout, stderr = p.communicate()
     # server_process.wait()

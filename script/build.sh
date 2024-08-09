@@ -29,7 +29,7 @@ rm -rf /SSDPath/nvmcache/*
 mkdir -p /home/md/SHMCachelib/Build
 cd /home/md/SHMCachelib/Build
 cmake $CMAKE_PARAMS ..
-make -j 4
+make -j 16
 
 clear
 echo "project construction completed"

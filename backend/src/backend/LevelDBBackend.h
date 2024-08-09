@@ -1,12 +1,14 @@
 #pragma once
 
 #include "backend.h"
+#include <config.h>
 #include <leveldb/db.h>
 #include <string>
 #include <vector>
 #include <mutex>
 
-#define LEVELDB_DIR "./leveldb"
+#define BASE_PREFIX "/home/md/workloadData/"
+#define LEVELDB_DIR BASE_PREFIX "leveldb/" UNIFIED_CACHE_POOL
 
 class LevelDBBackend : public Backend {
 private:

@@ -26,21 +26,21 @@ def remove_outliers_percentile(data, lower_percentile=0.00, upper_percentile=0.9
     
     return filtered_data
 
-def bench_one(cache_size, profile_name, warmup_times, run_times):
+def bench_one(cache_size, profile_name, run_times):
     # NOTE: this needs to be edited for remote caching
     # excute the benchmark
     server_process = subprocess.Popen(f'./Build/Server -p {cache_size}', shell=True)
     time.sleep(5)
-    os.system(f'./Build/YCSB_CPP --warmup {warmup_times} --run {run_times} --cache --profile {profile_name}')
+    os.system(f'./Build/YCSB_CPP --cache --warmup --run {run_times} --profile {profile_name}')
     os.system(f'python3 ./script/EndServer.py')
     server_process.wait()
 
 
-def bench(cache_sizes, profile_prefix, warmup_times, run_times):
+def bench(cache_sizes, profile_prefix, run_times):
     for idx, cache_size in enumerate(cache_sizes):
         print(f'Benching {idx + 1} / {len(cache_sizes)}, cache size: {cache_size}M')
         # NOTE: this needs to be edited for remote caching
-        bench_one(cache_size, f'{profile_prefix}_cache{cache_size}M', warmup_times, run_times)
+        bench_one(cache_size, f'{profile_prefix}_cache{cache_size}M', run_times)
     
 def density_curves(cache_sizes, profile_prefix):
     # NOTE: this two needs to be tuned for a proper visualization
@@ -126,15 +126,14 @@ def latency_cachesize(cache_sizes, profile_prefix):
     plt.savefig(f'{profile_prefix}_latency_hitrate_plot.png')
 
 def analyze_latency(cache_sizes, profile_prefix):
-    density_curves(cache_sizes, profile_prefix)
+    # density_curves(cache_sizes, profile_prefix)
     latency_cachesize(cache_sizes, profile_prefix)
 
 if __name__ == '__main__':
     # 0-7G, 256M per unit
-    cache_sizes = [i * 256 for i in range(49)]
-    profile_prefix = './data/0713/tmdb_10G_sequential'
-    warmup_times = 0
-    run_times = 2
-    bench(cache_sizes, profile_prefix, warmup_times, run_times)
+    cache_sizes = [i * 128 for i in range(25)]
+    profile_prefix = './data/0724/leveldb_sequential_2400M'
+    run_times = 1
+    bench(cache_sizes, profile_prefix, run_times)
     analyze_latency(cache_sizes, profile_prefix)
     

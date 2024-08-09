@@ -22,6 +22,7 @@ pkg_search_module(LIBMONGOCXX REQUIRED libmongocxx)
 
 # Set include directories using target_include_directories
 file(GLOB_RECURSE SOURCES ${CMAKE_CURRENT_LIST_DIR}/src/*.cpp)
+# set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g")
 add_executable(YCSB_CPP ${SOURCES})
 
 target_include_directories(YCSB_CPP PRIVATE 

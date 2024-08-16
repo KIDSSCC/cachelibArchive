@@ -147,18 +147,22 @@ def warmup(name):
     return process
 
 def run(name):
-    run_times = 3
+    run_times = -1
+    max_queries = 40000
     profile_file = name
-    args = ['--cache', '--run', str(run_times), '--profile', profile_file]
-    process = subprocess.Popen([name] + args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    log_info = 0
+    args = ['--cache', '--run', str(run_times), '--maxquery', str(max_queries), '--profile', profile_file, '--loginfo', str(log_info)]
+    process = subprocess.Popen([name] + args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     return process
 
 def warmup_and_run(name):
-    run_times = 5
+    run_times = 100
+    max_queries = 40000
     profile_file = name
-    print('----- profile_file: {}'.format(profile_file))
-    args = ['--cache', '--warmup', '--run', str(run_times), '--profile', profile_file]
-    process = subprocess.Popen([name] + args, stdout=None, stderr=None)
+    log_info = 3
+    # print('----- profile_file: {}'.format(profile_file))
+    args = ['--cache', '--warmup', '--run', str(run_times), '--maxquery', str(max_queries), '--profile', profile_file, '--loginfo', str(log_info)]
+    process = subprocess.Popen([name] + args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     return process
 
 def pool_resize(names):
@@ -175,9 +179,13 @@ def pool_resize(names):
 
 
 if __name__ == '__main__':
-    par_path = 'Build/'
+    par_path = '/home/md/SHMCachelib/bin/0809/'
     app = [
-        'YCSB_CPP'
+        'mysql_uniform_400M',
+        'leveldb_hotspot_400M',
+        'mongodb_hotspot_800M',
+        'sqlite_zipfian_800M',
+        'leveldb_sequential_2400M'
     ]
     absolute_path = [par_path + wl for wl in app]
 
@@ -203,20 +211,18 @@ if __name__ == '__main__':
     run_procs = []
     for wl in absolute_path:
         run_procs.append(run(wl))
-    clear_groups()
+    # clear_groups()
     pids = [proc.pid for proc in run_procs]
     target_bd = [1]
     # set_bandwidth(pids, target_bd)
     for p in run_procs:
         outs, errs = p.communicate()
-        print(outs.decode('utf-8'))
-        print(type(errs))
 
     # # warmup and run
     # procs = []
     # for wl in absolute_path:
     #     procs.append(warmup_and_run(wl))
-    # pool_resize(app)
+    # # pool_resize(app)
     # for p in procs:
     #     stdout, stderr = p.communicate()
     # server_process.wait()

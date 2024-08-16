@@ -13,9 +13,9 @@ build
 /executefile
 /data
 bin/
-schedule/__pycache__/
+schedule/__pycache__
 
 startup.sh
 tags
 *.fio
-
+*.backup

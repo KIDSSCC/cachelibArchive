@@ -14,6 +14,7 @@
 #include <mutex>
 #include <atomic>
 #include <cmath>
+#include <climits>
 
 
 std::atomic<int> g_next_insert_key = 0;
@@ -25,6 +26,8 @@ int main(int argc, char* argv[]) {
     int num_threads = 1;
     int run_times = 0;
     std::string profile_file = "";
+	int logInfo = 0;
+	int currentMaxQueries = MAX_QUERIES;
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
         if (arg == "--cache") {
@@ -49,11 +52,22 @@ int main(int argc, char* argv[]) {
             if (i + 1 < argc) {
                 run_times = std::stoi(argv[i + 1]);
             }
+			// kidsscc: when args is -1, run the bench infinitely
+			if(run_times==-1){
+				run_times = INT_MAX;
+			}
         } else if (arg == "--profile") {
             if (i + 1 < argc) {
                 profile_file = argv[i + 1];
             }
-
+		}else if(arg=="--loginfo"){
+			if(i+1<argc){
+				logInfo = std::stoi(argv[i+1]);
+			}
+		}else if(arg=="--maxquery"){
+			if(i+1<argc){
+				currentMaxQueries = std::stoi(argv[i+1]);
+			}
         } else if (arg == "--help") {
             std::cout << "Usage: sqlcache [options]\n"
                       << "Options:\n"
@@ -78,7 +92,6 @@ int main(int argc, char* argv[]) {
     std::mutex total_latencies_mutex;
 
     if (do_prepare) {
-        
         BACKEND backend(0); // therad_id = 0 for same table across threads
         //kidsscc:write to cache in prepare phase
         // TODO:fix the bug. declaring the client within the if scope will cause a segment fault
@@ -108,7 +121,7 @@ int main(int argc, char* argv[]) {
             g_next_insert_key = MAX_RECORDS;
             std::vector<std::thread> threads;
             for (int i = 0; i < num_threads; i++){
-                threads.emplace_back([cache_enabled, &iterate,
+                threads.emplace_back([cache_enabled, currentMaxQueries, &iterate,
                                 &total_hit_count, &total_records_executed, &sequential_startidx]() {
                     CachelibClient cacheclient;
                     BACKEND backend(0);
@@ -127,10 +140,10 @@ int main(int argc, char* argv[]) {
                     }
                     else
                     {
-                        YCSBBenchmark benchmark(backend, sequential_startidx);
+                        YCSBBenchmark benchmark(backend, sequential_startidx, -1, false, currentMaxQueries);
                         benchmark.run();
                         total_hit_count += backend.hit_count;
-                        sequential_startidx = (sequential_startidx + MAX_QUERIES) % MAX_RECORDS;
+                        sequential_startidx = (sequential_startidx + currentMaxQueries) % MAX_RECORDS;
                         total_records_executed += benchmark.records_executed;
                     }
 
@@ -156,7 +169,7 @@ int main(int argc, char* argv[]) {
             g_next_insert_key = MAX_RECORDS;
             std::vector<std::thread> threads;
             for (int i = 0; i < num_threads; i++) {
-                threads.emplace_back([cache_enabled, i, 
+                threads.emplace_back([cache_enabled, i, currentMaxQueries, 
                                     &total_throughput, &total_usedtime, &total_hit_count, &total_records_executed,
                                     &total_latencies, &total_latencies_mutex, &sequential_startidx]() {
 					CachelibClient cacheclient;
@@ -165,7 +178,7 @@ int main(int argc, char* argv[]) {
                     	cacheclient.addpool(UNIFIED_CACHE_POOL);
 						backend.enable_cache(cacheclient);
                     }
-                    YCSBBenchmark benchmark(backend, sequential_startidx, i);
+                    YCSBBenchmark benchmark(backend, sequential_startidx, i, false, currentMaxQueries);
                     benchmark.run();
                     double throughput = (double) benchmark.records_executed / (double) benchmark.millis_elapsed * 1000;
                     std::vector<unsigned int> latencies = benchmark.latencies_ns;
@@ -219,7 +232,7 @@ int main(int argc, char* argv[]) {
             OUTPUT << "Total Used Time: " << total_usedtime << " ms" << std::endl;
 
             if (!profile_file.empty()) {
-                std::ofstream out(profile_file + "_tailLatency.log", std::ios::app);
+                std::ofstream out(profile_file + "_meta.log", std::ios::app);
                 out << total_percentile_99 << " " 
 					<< total_percentile_95 << " " 
 					<< total_percentile_50 << " " 
@@ -228,10 +241,30 @@ int main(int argc, char* argv[]) {
 					<< total_hitrate << std::endl;
             }
             
-            // if(!profile_file.empty()) {
-            //     std::ofstream out(profile_file + "_tailLatency.log", std::ios::app);
-            //     out << total_percentile_99 << std::endl;
-            // }
+            if(!profile_file.empty()) {
+                std::ofstream out(profile_file + "_subItem.log", std::ios::app);
+				switch(logInfo){
+					case 0:
+						out << total_percentile_99 << std::endl;
+						break;
+					case 1:
+						out << total_percentile_95 << std::endl;
+						break;
+					case 2:
+						out << total_percentile_50 << std::endl;
+						break;
+					case 3:
+						out << average_percentile << std::endl;
+						break;
+					case 4:
+						out << total_throughput << std::endl;
+						break;
+					case 5:
+						out << total_hitrate << std::endl;
+						break;
+					default:break;
+				}
+            }
             // if(!profile_file.empty()) {
             //     std::ofstream out(profile_file + "_hitrate.log", std::ios::app);
             //     out << total_hitrate << std::endl;
@@ -243,7 +276,7 @@ int main(int argc, char* argv[]) {
             total_records_executed = 0;
             total_latencies.clear();
             total_latencies.shrink_to_fit();
-            sequential_startidx = (sequential_startidx + MAX_QUERIES) % MAX_RECORDS;
+            sequential_startidx = (sequential_startidx + currentMaxQueries) % MAX_RECORDS;
         }
     }
     return 0;

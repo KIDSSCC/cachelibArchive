@@ -8,7 +8,10 @@
 #include "utils/percentile.h"
 #include "utils/save_vector.h"
 #include "clientAPI.h"
-#include "config.h"
+
+#include CONFIG_FILE
+// #include "config.h"
+
 #include <thread>
 #include <vector>
 #include <mutex>

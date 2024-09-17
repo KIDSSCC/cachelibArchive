@@ -1,7 +1,8 @@
 #pragma once
 
 #include "backend.h"
-#include <config.h>
+#include CONFIG_FILE
+// #include "config.h"
 #include <leveldb/db.h>
 #include <string>
 #include <vector>

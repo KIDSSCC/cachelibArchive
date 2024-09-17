@@ -1,6 +1,8 @@
 #pragma once
 
 #include "common.h"
+#include CONFIG_FILE
+// #include "config.h"
 #include "backend.h"
 #include "utils/randstring.h"
 #include <iostream>
@@ -16,7 +18,7 @@
 #define MYSQL_USERNAME "root"
 #define MYSQL_PASSWORD "zheshimima"
 #define MYSQL_DATABASE "ycsb"
-#define MYSQL_TABLE_PREFIX "uniform_400M"
+#define MYSQL_TABLE_PREFIX UNIFIED_CACHE_POOL
 
 class MySQLBackend : public Backend {
 public:

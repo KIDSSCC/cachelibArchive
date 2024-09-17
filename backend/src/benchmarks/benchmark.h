@@ -1,7 +1,8 @@
 #pragma once
 
 #include "common.h"
-#include "config.h"
+#include CONFIG_FILE
+// #include "config.h"
 #include "backend/backend.h"
 
 class Benchmark

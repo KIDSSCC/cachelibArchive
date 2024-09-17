@@ -7,13 +7,13 @@
 #define DISTRIBUTION_HOTSPOT 4
 #define DISTRIBUTION_EXPONENTIAL 5
 
-#define UNIFIED_CACHE_POOL "tmdb_uniform_test"
+#define UNIFIED_CACHE_POOL "leveldb_hotspot_test"
 
 // kind of backend
-#define BACKEND TmdbBackend
+// #define BACKEND TmdbBackend
 // #define BACKEND MySQLBackend
 // #define BACKEND MongoDBBackend
-// #define BACKEND LevelDBBackend
+#define BACKEND LevelDBBackend
 // #define BACKEND SQLiteBackend
 
 #define MAX_RECORDS 1000 // number of records in the database
@@ -24,7 +24,7 @@
 #define OUTPUT std::cout
 
 // current distribution
-#define DISTRIBUTION DISTRIBUTION_UNIFORM
+#define DISTRIBUTION DISTRIBUTION_HOTSPOT
 
 #if DISTRIBUTION == DISTRIBUTION_ZIPFIAN
     #define ZIPFIAN_SKEW 0.99

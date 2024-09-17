@@ -35,8 +35,7 @@ target_include_directories(YCSB_CPP PRIVATE
 )
 
 # Link libraries
-target_link_libraries(YCSB_CPP
-    PRIVATE
+target_link_libraries(YCSB_CPP PRIVATE
     mysqlcppconn
     leveldb::leveldb
     ${LIBMONGOCXX_LIBRARIES}

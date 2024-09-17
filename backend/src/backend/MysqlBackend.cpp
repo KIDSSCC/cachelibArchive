@@ -67,7 +67,7 @@ bool MySQLBackend::read_record(int key, std::vector<std::string>& results) {
     }
     std::unique_ptr<sql::ResultSet> res = execute_query(sql);
     if (res->next()) {
-        for (int i = 1; i <= MAX_FIELDS; i++) {
+        for (int i = 2; i <= MAX_FIELDS + 1; i++) {
             results.push_back(res->getString(i));
         }
         if (cache_enabled) {

@@ -20,6 +20,7 @@ target_link_libraries(CachelibHeader PUBLIC cachelib)
 
 # set client api library
 add_library(ClientAPI STATIC "${CS_dir}/clientAPI.cpp")
+target_link_libraries(ClientAPI PUBLIC rt)
 
 # generate server executable
 add_executable(Server "${CS_dir}/server.cpp")

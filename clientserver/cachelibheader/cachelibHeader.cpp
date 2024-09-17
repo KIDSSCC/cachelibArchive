@@ -36,11 +36,11 @@ void cacheConfigure(CacheConfig& config)
     config.enablePoolResizing(std::make_shared<RebalanceStrategy>(),std::chrono::milliseconds{1}, poolResizeSlabsPerIter);
 
     //nvm config
+    #if HYBRID_CACHE
     std::string cacheDir_ = folly::sformat("/SSDPath/nvmcache");
     cachelib::util::makeDir(cacheDir_);
     Cache::NvmCacheConfig nvmConfig;
     nvmConfig.navyConfig = getNvmConfig(cacheDir_);
-    #if HYBRID_CACHE
         config.enableNvmCache(nvmConfig);
     #endif
     config.validate();   

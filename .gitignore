@@ -19,3 +19,4 @@ startup.sh
 tags
 *.fio
 *.backup
+*.ipynb

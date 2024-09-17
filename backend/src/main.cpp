@@ -196,8 +196,8 @@ int main(int argc, char* argv[]) {
                     // OUTPUT << "Thread " << i << " 50th percentile: " << percentile_50 << " ns" << std::endl;
 
                     // aggregate the results
-                    total_throughput += throughput;
-                    total_usedtime += benchmark.millis_elapsed;
+                    total_throughput = total_throughput + throughput;
+                    total_usedtime = total_usedtime + benchmark.millis_elapsed;
                     total_hit_count += hit_count;
                     total_records_executed += total_count;
                     {
@@ -230,6 +230,8 @@ int main(int argc, char* argv[]) {
             OUTPUT << "Total 50th percentile: " << total_percentile_50 << " ns" << std::endl;
             OUTPUT << "Total average latency: " << average_percentile << " ns" << std::endl;
             OUTPUT << "Total Used Time: " << total_usedtime << " ms" << std::endl;
+            OUTPUT << "Total Records Executed: " << total_records_executed << std::endl;
+            OUTPUT << "Total Hit Count: " << total_hit_count << std::endl;
 
             if (!profile_file.empty()) {
                 std::ofstream out(profile_file + "_meta.log", std::ios::app);

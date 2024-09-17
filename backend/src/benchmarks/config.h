@@ -7,7 +7,7 @@
 #define DISTRIBUTION_HOTSPOT 4
 #define DISTRIBUTION_EXPONENTIAL 5
 
-#define UNIFIED_CACHE_POOL "leveldb_sequential_2400M"
+#define UNIFIED_CACHE_POOL "mysql_uniform_test"
 
 // kind of backend
 // #define BACKEND TmdbBackend
@@ -16,15 +16,15 @@
 #define BACKEND LevelDBBackend
 // #define BACKEND SQLiteBackend
 
-#define MAX_RECORDS 245760 // number of records in the database
+#define MAX_RECORDS 2097152 // number of records in the database
 #define MAX_FIELDS 1 // number of fields in each record
-#define MAX_FIELD_SIZE 10240 // size of each field (in chars)
-#define MAX_QUERIES 10000 // number of queries to execute
+#define MAX_FIELD_SIZE 1024 // size of each field (in chars)
+#define MAX_QUERIES 50000 // number of queries to execute
 #define QUERY_PROPORTION 1 // proportion of read queries, the rest are insert queries
 #define OUTPUT std::cout
 
 // current distribution
-#define DISTRIBUTION DISTRIBUTION_SEQUENTIAL
+#define DISTRIBUTION DISTRIBUTION_UNIFORM
 
 #if DISTRIBUTION == DISTRIBUTION_ZIPFIAN
     #define ZIPFIAN_SKEW 0.99

@@ -13,7 +13,7 @@ const std::vector<int> FAST_MASKS = {1, 2, 4, 8, 16, 32, 64, 128, 256, 512};
 inline std::string randomFastString(std::mt19937& rng, size_t length) {
     std::string result(length, 'A'); // Initialize the string with the desired length
     //kidsscc:
-    return result;
+    // return result;
     int numRounds = length / FAST_MASKS.size();
     size_t i = 0;
 

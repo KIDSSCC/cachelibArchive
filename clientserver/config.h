@@ -7,10 +7,10 @@
 #define KB_SIZE ((size_t)1024)
 
 // for cachelib header
-#define CACHE_SIZE 1808 * MB_SIZE
+#define CACHE_SIZE 5 * GB_SIZE
 #define REDUNDARY_SIZE (size_t)4 * 1024 * 1024
 
-#define POOL_SIZE 352 * MB_SIZE
+#define POOL_SIZE 16 * MB_SIZE
 
 #define HYBRID_CACHE 0
 #define CREATE_DEFAULT_POOL 0

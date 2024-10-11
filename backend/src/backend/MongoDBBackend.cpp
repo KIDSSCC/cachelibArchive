@@ -10,7 +10,9 @@ MongoDBBackend::MongoDBBackend(int thread_id) : Backend(thread_id) {
     client = mongocxx::client{mongocxx::uri{MONGODB_URI}};
     db_name = "ycsb"; // Default database for YCSB benchmarks
     db = client[db_name];
-    collection_name = COLLECTION_PREFIX + std::to_string(thread_id);
+    // collection_name = COLLECTION_PREFIX + std::to_string(thread_id);
+    // mongodb: 不同的workload映射到同一个数据库的不同collection中，同一个workload中的不同线程映射至同一个collection
+    collection_name = COLLECTION_PREFIX UNIFIED_CACHE_POOL;
     collection = db[collection_name];
 }
 

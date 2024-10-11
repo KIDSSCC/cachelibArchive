@@ -13,6 +13,7 @@
 
 #include "shm_util.h"
 #include <random>
+#include <logger.h>
 
 
 using namespace std;
@@ -22,6 +23,7 @@ private:
     int pid;
     int msgid;
     string prefix;
+	Logger logger;
 
     int shm_fd;
     void* shared_memory;

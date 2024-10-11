@@ -20,4 +20,6 @@ tags
 *.fio
 *.backup
 *.ipynb
+log/
+diskdata/
 

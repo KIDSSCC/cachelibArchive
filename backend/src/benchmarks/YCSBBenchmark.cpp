@@ -3,7 +3,11 @@
 
 YCSBBenchmark::YCSBBenchmark(Backend& backend, unsigned int sequential_startidx, int threadId, bool WhetherSequence, unsigned int CURR_QUERY)
     : Benchmark(backend) { 
-        //kidsscc: reinitialize max_query
+        init(sequential_startidx, threadId, WhetherSequence, CURR_QUERY);
+    }
+
+void YCSBBenchmark::init(unsigned int sequential_startidx, int threadId, bool WhetherSequence, unsigned int CURR_QUERY) {
+    //kidsscc: reinitialize max_query
         max_query = CURR_QUERY;
         latencies_ns.reserve(max_query);
         whether_sequence = WhetherSequence;
@@ -41,7 +45,7 @@ YCSBBenchmark::YCSBBenchmark(Backend& backend, unsigned int sequential_startidx,
         }
         
         rng = std::mt19937(rd());
-    }
+}
 
 bool YCSBBenchmark::create_database() {
     debug(

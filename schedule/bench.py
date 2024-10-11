@@ -1,168 +1,192 @@
-import socket
 import subprocess
-import threading
+import logging
 import time
 import os
-import pickle
+import random
 from util import *
 
+# 配置日志输出的基本格式和日志级别
+logging.basicConfig(level=logging.INFO)
 
+directory_path  = '/home/md/SHMCachelib/Build'
+passwd = 'k15648611412'
+disk_bandwidth = 1024 * 1024
 
-host = '127.0.0.1'
-port = 54000
-executable_path = '/home/md/SHMCachelib/Build/tmdb_test'
-data_path = '/home/md/workloadData/'
-
-sig_end = 0
-
-
-# '''
-# send the current config to the scheduler and wait the new config
-# '''
-# def resource_schedule(config):
-#     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-#     client_socket.connect(('127.0.0.1', 1412))
-#     serialized_config = pickle.dumps(config)
-#     client_socket.send(serialized_config)
-#     client_socket.close()
+def generate_even_list(n, C):
+    # 初步分配，每个元素均为 C // n
+    base_value = C // n
+    result = [base_value] * n
+    # 剩余的部分
+    remainder = C % n
     
-
-#     # wait the response
+    # 随机分配 remainder
+    for i in random.sample(range(n), remainder):
+        result[i] += 1
     
-#     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-#     server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-#     server_socket.bind(('127.0.0.1', 1413))
-#     server_socket.listen(1)
+    return result
 
-#     response_socket, response_address = server_socket.accept()
-#     serialized_new_config = response_socket.recv(1024)
-#     new_config = pickle.loads(serialized_new_config)
-#     server_socket.close()
-#     response_socket.close()
-#     #new_partition = [config[1][0]-2, config[1][1], config[1][2]+2]
-#     #new_config = [config[0], new_partition]
-#     return new_config
+def get_pid(task_name):
+    all_pids = []
+    for name in task_name:
+        proc = subprocess.run(['pidof', name[0]], shell=False, text=True, capture_output=True)
+        pid = proc.stdout.strip().split()
+        assert len(pid) != 0, '{} not found'.format(name)
+        assert len(pid) == 1, '{} have more than one proc'.format(name)
+        all_pids.append(pid[0])
+    return all_pids
+
+def clear_groups():
+    """
+    delete existing blkio groups
+    Args:
+
+    Returns:
+    """
+    command = 'ls -d ' + cgroup_path + 'group*/'
+    # print(command)
+    result = subprocess.run(command, shell=True, text=True, capture_output=True)
+    stdout = result.stdout
+    if 'cannot' in stdout or "" == stdout:
+        # no groups
+        # print('no groups need to clear')
+        return
+    all_groups = stdout.strip().split('\n')
+    all_groups = [line.replace(cgroup_path, "")[:-1] for line in all_groups]
     
-# '''
-# construct all partitions
-# '''
-# def get_all_partitions():
-#     all_partitions = []
-#     # for i in range(0, 97, 8):
-#     #     for j in range(1, 5, 1):
-#     #         for k in range(1, 31, 3):
-#     #             all_partitions.append([i, j, k])
-#     # for i in range(80, 104, 8):
-#     # for j in range(1, 5, 1):
-#     for k in range(1, 31, 3):
-#         all_partitions.append([96, 4, k])
-#     return all_partitions
+    for group in all_groups:
+        delete_command = 'sudo -S cgdelete -r blkio:' + group
+        # print(delete_command)
+        subprocess.run(delete_command, input=passwd, shell=True, text=True, capture_output=True)
 
-# def print_1(line):
-#     fileName = 'global_record.log'
-#     print(line)
-#     return
-#     with open(fileName, 'a') as logFile:
-#         print(line, file=logFile)
+def set_cpu_cores(pids, cores):
+    core_index = 0
+    if isinstance(cores, list):
+        for i in range(len(pids)):
+            cpu_to_set = map(str, range(core_index, core_index + cores[i]))
+            allocated_cpu = ','.join(cpu_to_set)
+            #print(allocated_cpu)
+
+            command = 'taskset -cp ' + allocated_cpu + ' ' + str(pids[i])
+            # print(command)
+
+            result = subprocess.run(command, shell=True, text=True, capture_output=True)
+            if result.returncode == 0:
+                logging.info('CPU affinity set successfully.')
+
+            core_index = core_index + cores[i]
+    elif isinstance(cores, int):
+        cpu_to_set = map(str, range(core_index, core_index + cores))
+        allocated_cpu = ','.join(cpu_to_set)
+        for i in range(len(pids)):
+            command = 'taskset -cp ' + allocated_cpu + ' ' + str(pids[i])
+            print(command)
+            result = subprocess.run(command, shell=True, text=True, capture_output=True)
+            if result.returncode == 0:
+                logging.info('CPU affinity set successfully.')
+    else:
+        logging.error('Invalid cores type.')
+        return
+def set_bandwidth(pids, bandwidths):
+    """
+    Communicating with OS cgroup blkio, adjust bandwidth
+    Args:
+        procs (list<str>): pid of all workloads
+        bandwidths (list<int>): new bandwidth of every workload
+
+    Returns:
+
+    """
+    if isinstance(bandwidths, list):
+        for i in range(len(pids)):
+            group_name = 'group_' + str(pids[i])
+            # check the group exist
+            check_command = 'sudo -S cgget -g blkio:' + group_name
+            # print(check_command)
+            check_res = subprocess.run(check_command, input=passwd, shell=True, text=True, capture_output=True)
+            if 'cannot' in check_res.stderr:
+                # group non-exist,need to create new group
+                print('{} non-exist'.format(group_name))
+                # create new group
+                create_command = 'sudo -S cgcreate -g blkio:' + group_name
+                # print(create_command)
+                subprocess.run(create_command, input=passwd, shell=True, text=True, capture_output=True)
+                # add proc to group
+                classify_command = 'sudo -S cgclassify -g blkio:' + group_name + ' ' + str(pids[i])
+                # print(classify_command)
+                subprocess.run(classify_command, input=passwd, shell=True, text=True, capture_output=True)
+            # adjust the weigh
+            adjust_command = 'sudo -S cgset -r blkio.throttle.read_bps_device="8:16 ' + \
+                            str(bandwidths[i] * disk_bandwidth) + \
+                            '" ' + group_name
+            # print(adjust_command)
+            subprocess.run(adjust_command, input=passwd, shell=True, text=True, capture_output=True)
+    elif isinstance(bandwidths, int):
+        group_name = 'default_group'
+        check_command = 'sudo -S cgget -g blkio:' + group_name
+        check_res = subprocess.run(check_command, input=passwd, shell=True, text=True, capture_output=True)
+        if 'cannot' in check_res.stderr:
+            print('{} non-exist'.format(group_name))
+            create_command = 'sudo -S cgcreate -g blkio:' + group_name
+            subprocess.run(create_command, input=passwd, shell=True, text=True, capture_output=True)
+        for i in range(len(pids)):
+            classify_command = 'sudo -S cgclassify -g blkio:' + group_name + ' ' + str(pids[i])
+            subprocess.run(classify_command, input=passwd, shell=True, text=True, capture_output=True)
+        adjust_command = 'sudo -S cgset -r blkio.throttle.read_bps_device="8:16 ' + \
+                        str(bandwidths * disk_bandwidth) + \
+                        '" ' + group_name
+        subprocess.run(adjust_command, input=passwd, shell=True, text=True, capture_output=True)
+    else:
+        logging.error('Invalid bandwidth type.')
 
 
-# def execute_tmdb_load(workload):
-#     complete_workload = data_path + workload + '_load.txt'
-#     executable_with_args = [executable_path, '-i', complete_workload, '-o', workload, '-l']
-#     process = subprocess.Popen(executable_with_args, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
-#     return process
+def close_server():
+    host = '127.0.0.1'
+    port = 54000
+    message = "E:"
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.connect((host, port))
+    sock.sendall(message.encode())
 
+def get_binary():
+    # # Build目录下获取可执行文件，随机打乱后从中选择5个任务
+    bin_files = [[f] for f in os.listdir(directory_path) if f.startswith("bin")]
+    mysql_threads = [1, 2, 2, 4, 4]
+    i = 0
+    for index in range(len(bin_files)):
+        bin_files[index].append('--threads')
+        if 'mysql' in bin_files[index][0]:
+            bin_files[index].append(str(mysql_threads[i]))
+            i += 1
+        else:
+            bin_files[index].append('1')
 
-# def execute_tmdb_run(wl):
-#     file_run = data_path + wl + '_run.txt'
-#     command_order = [executable_path, '-i', file_run, '-o', wl, '-r']
+    # bin_files = [
+    #     ['bin_leveldb_sequential_5G', '--threads', '1'],
+    #     ['bin_leveldb_zipfian_1024M', '--threads', '1'],
+    #     ['bin_mysql_hotspot_512M', '--threads', '2'],
+    #     ['bin_mysql_hotspot_1024M', '--threads', '2'],
+    #     ['bin_mysql_zipfian_512M', '--threads', '2'],
+    #     ['bin_sqlite_sequential_5G', '--threads', '1'],
+    #     ['bin_sqlite_uniform_1024M', '--threads', '2'],
+    #     ['bin_sqlite2_sequential_5G', '--threads', '1'],
+    #     ['bin_tmdb_sequential_5G', '--threads', '1'],
+    #     ['bin_tmdb_uniform_512M', '--threads', '2'],
+    # ]
+    random.seed(0)
+    random.shuffle(bin_files)
 
-#     itea = 1
-#     while sig_end == 0:
-#         process = subprocess.Popen(command_order, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
-#         std_out, _ = process.communicate()
-#         # print_1('itea is:'+str(itea))
-#         # print_bytes(wl, std_out)
-#         # itea = itea+1
-#         #if itea>2:
-#         #    break
-        
-# def capture_log(pool_names, pids):
-#     clear_groups()
-#     # wait for prepare
-#     prepare_file = 'tmdb_hotspot_1K_02prepare.log'
-#     while not os.path.isfile(prepare_file):
-#         time.sleep(5)
-#     print('prepare finish')
+    # 任务数固定为5，cache大小固定为1536
+    workload_num = 25
+    cache_size = 10240
+    target_workloads = bin_files[:workload_num]
+    logging.info('----- Target workloads:')
+    for item in target_workloads:
+        logging.info(item)
+    logging.info('----- Target workloads End')
+    return target_workloads, cache_size
 
-#     # begin to schedule
-#     all_partitions = get_all_partitions()
-#     for i in range(len(all_partitions)):
-#         # wait for output
-#         log_name = 'tmdb_hotspot_1K_02_latency.log'
-#         last_line = get_last_line(log_name)
-#         while last_line=='' or last_line.split()[1] != 'Hitrate:':
-#             time.sleep(30)
-#             last_line = get_last_line(log_name)
-
-#         # set new config
-#         curr_config = []
-#         curr_config.append(pool_names)
-#         curr_config.append(pids)
-#         # cache size
-#         curr_config.append([all_partitions[i][0], 96 - all_partitions[i][0]])
-#         # cpu cores
-#         curr_config.append([all_partitions[i][1], all_partitions[i][1]])
-#         # IO bandwidth
-#         curr_config.append([all_partitions[i][2], 30 - all_partitions[i][2]])
-#         set_pool_stats(curr_config)
-#         # write to log
-        
-#         message = 'adjust config to: ' + str(all_partitions[i]) + '\n'
-#         print(message)
-#         with open(log_name, 'a') as f:
-#                 f.write(message)
-
-#         os.makedirs('scheduleMangement/', exist_ok=True)
-#         schedule = 'scheduleMangement/findOptimal_' + str(i+1) + '_' + str(len(all_partitions)) + '.log'
-#         file = open(schedule, 'w')
-#         file.close()
-
-
-# def print_bytes(name, result):
-#     text = result.decode('utf-8')
-#     logFile = 'time_record.log'
-#     print_1('workload is: '+ name)
-#     for line in text.splitlines():
-#         print_1('\t'+ line)
-
-def prepare(name):
-    args = ['--prepare']
-    process = subprocess.Popen([name] + args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    return process
-
-def warmup(name):
-    args = ['--cache', '--warmup']
-    process = subprocess.Popen([name] + args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    return process
-
-def run(name):
-    run_times = -1
-    max_queries = 40000
-    profile_file = name
-    log_info = 0
-    args = ['--cache', '--run', str(run_times), '--maxquery', str(max_queries), '--profile', profile_file, '--loginfo', str(log_info)]
-    process = subprocess.Popen([name] + args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    return process
-
-def warmup_and_run(name):
-    run_times = 100
-    max_queries = 40000
-    profile_file = name
-    log_info = 3
-    # print('----- profile_file: {}'.format(profile_file))
-    args = ['--cache', '--warmup', '--run', str(run_times), '--maxquery', str(max_queries), '--profile', profile_file, '--loginfo', str(log_info)]
-    process = subprocess.Popen([name] + args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+def operation(args):
+    process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     return process
 
 def pool_resize(names):
@@ -178,51 +202,128 @@ def pool_resize(names):
         print('---------- {}->{}'.format(key, p_map[key]))
 
 
-if __name__ == '__main__':
-    par_path = '/home/md/SHMCachelib/bin/0809/'
-    app = [
-        'mysql_uniform_400M',
-        'leveldb_hotspot_400M',
-        'mongodb_hotspot_800M',
-        'sqlite_zipfian_800M',
-        'leveldb_sequential_2400M'
-    ]
-    absolute_path = [par_path + wl for wl in app]
 
-    # server process
-    # server_process = subprocess.Popen(f'./Build/Server', shell=True)
-    # time.sleep(5)
-    # # prepare
-    # prepare_procs = []
-    # for wl in absolute_path:
-    #     prepare_procs.append(prepare(wl))
-    # for p in prepare_procs:
-    #     p.wait()
+def prepare_phase(target_workloads):
+    logging.info('----- Begin To Prepare')
+    start_time = time.time()
+    prepare_procs = []
+    for wl in target_workloads:
+        prepare_procs.append(operation([os.path.join(directory_path, wl[0]), '--prepare']))
+    for index, p in enumerate(prepare_procs):
+        logging.info('{} Prepare Start'.format(target_workloads[index]))
+        stdout, _ = p.communicate()
+        lines = stdout.decode('utf-8').strip().split('\n')
+        if not any('Preparation done' in s for s in lines):
+            logging.error('{} Preparation failed'.format(target_workloads[index]))
+    # for wl in target_workloads:
+    #     proc = operation([os.path.join(directory_path, wl[0]), '--prepare'])
+    #     print('{} Prepare Start'.format(wl[0]))
+    #     stdout, _ = proc.communicate()
+    #     lines = stdout.decode('utf-8').strip().split('\n')
+    #     if not any('Preparation done' in s for s in lines):
+    #         logging.error('{} Preparation failed'.format(wl[0]))
+    end_time = time.time()
+    logging.info('----- Prepare Time: {}'.format(end_time - start_time))
+    logging.info('----- Prepare Done')
 
-    # warm up
-    warm_procs = []
-    for wl in absolute_path:
-        warm_procs.append(warmup(wl))
-    for p in warm_procs:
+def cache_server(cache_size, pool_size, default_pool, size_conv=None):
+    args = ['taskset', '-c', '56-111', './Build/Server']
+    if cache_size is not None:
+        args.append('-c')
+        args.append(str(cache_size))
+    if pool_size is not None:
+        args.append('-p')
+        args.append(str(pool_size))
+    if size_conv is not None:
+        args.append('-g')
+        args.append(str(size_conv))
+    if default_pool == 1:
+        args.append('-d')
+        args.append('1')
+    
+    out_filename = 'log/server_out.log'
+    err_filename = 'log/server_err.log'
+    with open(out_filename, 'w') as out_file, open(err_filename, 'w') as err_file:
+        process = subprocess.Popen(args, stdout=out_file, stderr=err_file)
+    logging.info('----- Start Cache Server')
+    time.sleep(5)
+    return process
+
+def warmup(target_workloads):
+    logging.info('----- Begin To Warmup')
+    start_time = time.time()
+    procs = []
+    for wl in target_workloads:
+        tmp = [os.path.join(directory_path, wl[0]), '--cache', '--warmup', '--loginfo', '0', '--profile', 'log/']
+        tmp[-1] = tmp[-1] + wl[0]
+        procs.append(operation(tmp))
+    for index, p in enumerate(procs):
+        logging.info('Waiting {}'.format(target_workloads[index][0]))
         stdout, stderr = p.communicate()
-    print('----- All Warmup Finished')
+    end_time = time.time()
+    logging.info('----- Warmup Time: {}'.format(end_time - start_time))
+    logging.info('----- Warmup Done')
 
-    # run
-    run_procs = []
-    for wl in absolute_path:
-        run_procs.append(run(wl))
-    # clear_groups()
-    pids = [proc.pid for proc in run_procs]
-    target_bd = [1]
-    # set_bandwidth(pids, target_bd)
-    for p in run_procs:
-        outs, errs = p.communicate()
+def run(target_workloads):
+    logging.info('----- Begin To Run')
+    start_time = time.time()
+    procs = []
+    for wl in target_workloads:
+        tmp = [os.path.join(directory_path, wl[0]), '--cache', '--run', '5', wl[1], wl[2]]
+        tmp.extend(['--loginfo', '0', '--profile', 'log/'])
+        tmp[-1] = tmp[-1] + wl[0]
+        procs.append(operation(tmp))
+    pids = get_pid(target_workloads)
+    set_cpu_cores(pids, generate_even_list(len(target_workloads), 30))
+    set_bandwidth(pids, generate_even_list(len(target_workloads), 100))
 
-    # # warmup and run
-    # procs = []
-    # for wl in absolute_path:
-    #     procs.append(warmup_and_run(wl))
-    # # pool_resize(app)
-    # for p in procs:
-    #     stdout, stderr = p.communicate()
-    # server_process.wait()
+    for index, p in enumerate(procs):
+        logging.info('Waiting {}'.format(target_workloads[index][0]))
+        stdout, stderr = p.communicate()
+    end_time = time.time()
+    logging.info('----- Run Time: {}'.format(end_time - start_time))
+    logging.info('----- Run Done')
+
+def warmup_and_run(target_workloads):
+    logging.info('----- Begin To Warmup And Run')
+    start_time = time.time()
+    procs = []
+    for wl in target_workloads:
+        tmp = [os.path.join(directory_path, wl[0]), '--cache', '--warmup', '--run', '5', wl[1], wl[2]]
+        tmp.extend(['--loginfo', '0', '--profile', 'log/'])
+        tmp[-1] = tmp[-1] + wl[0]
+        procs.append(operation(tmp))
+    pids = get_pid(target_workloads)
+    #TODO:将所有的进程绑定在相同的cpu核心和同一个带宽组里
+    set_cpu_cores(pids, 12)
+    set_bandwidth(pids, 40)
+    for index, p in enumerate(procs):
+        logging.info('Waiting {}'.format(target_workloads[index][0]))
+        stdout, stderr = p.communicate()
+    end_time = time.time()
+    logging.info('----- Run Time: {}'.format(end_time - start_time))
+    logging.info('----- Run Done')
+
+if __name__ == '__main__':
+    clear_groups()
+    target_workloads, cache_size = get_binary()
+    
+    # prepare阶段
+    # prepare_phase(target_workloads)
+    # 启动cache server, pool_size 256, size_conv = 64
+    server_process = cache_server(cache_size, 384, 0, 64)
+
+    warmup(target_workloads)
+    run(target_workloads)
+
+
+    close_server()
+    server_process.communicate()
+
+    # 针对baseline的测试
+    # server_process = cache_server(cache_size, 256, 1, 64)
+    # warmup_and_run(target_workloads)
+    # close_server()
+    # server_process.communicate()
+
+    

@@ -3,6 +3,7 @@
 
 #include "cachelib/allocator/CacheAllocator.h"
 #include "cachelib/allocator/nvmcache/NavyConfig.h"
+#include "folly/logging/xlog.h"
 #include "folly/init/Init.h"
 
 
@@ -43,7 +44,7 @@ void cacheConfigure(CacheConfig& config);
 NavyConfig getNvmConfig(const std::string& cacheDir);
 
 //create a new cachelib instance
-void initializeCache(int cache_size, int pool_size);
+void initializeCache(int cache_size, int pool_size, int default_pool);
 
 //reclaim cachelib instance
 void destroyCache();

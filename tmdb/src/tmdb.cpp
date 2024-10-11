@@ -151,8 +151,11 @@ TDB  *_db_open(const char *path, char *mode) {
         return NULL;
     }
 	//Init name
+	// strcpy(db->idx_name, TDB_PATH_PREFIX);
 	strcpy(db->idx_name, path);
 	strcat(db->idx_name, TDB_IDX_SUFFIX);
+
+	// strcpy(db->dat_name, TDB_PATH_PREFIX);
 	strcpy(db->dat_name, path);
 	strcat(db->dat_name, TDB_DAT_SUFFIX);
 
@@ -224,11 +227,13 @@ TDB *_db_alloc(int namelen)
 		* Allocate room for the name.
 		* +5 for ".idx" or ".dat" plus null at end.
 		*/
-		if ( NULL == (db->name = reinterpret_cast<char*>(calloc(namelen + 5, sizeof(char))) ) )
+		// int prefix_len = strlen(TDB_PATH_PREFIX) + 10;
+		int prefix_len = strlen(TDB_PATH_PREFIX) + 5;
+		if ( NULL == (db->name = reinterpret_cast<char*>(calloc(namelen + prefix_len, sizeof(char))) ) )
 			err_dump("_db_alloc: malloc error for name");
-		if ( NULL == (db->idx_name = reinterpret_cast<char*>(calloc(namelen + 5, sizeof(char)))) )
+		if ( NULL == (db->idx_name = reinterpret_cast<char*>(calloc(namelen + prefix_len, sizeof(char)))) )
 			err_dump("_db_alloc: malloc error for idx_name");
-		if ( NULL == (db->dat_name = reinterpret_cast<char*>(calloc(namelen + 5, sizeof(char)))) )
+		if ( NULL == (db->dat_name = reinterpret_cast<char*>(calloc(namelen + prefix_len, sizeof(char)))) )
 			err_dump("_db_alloc: malloc error for dat_name");
 	#else
 		if ( NULL == (db = calloc(1, sizeof(TDB))) ) {

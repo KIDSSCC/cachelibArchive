@@ -1,0 +1,53 @@
+#pragma once
+
+#include "benchmark.h"
+#include "backend/backend.h"
+#include "utils/zipfian.h"
+#include "utils/randstring.h"
+#include "cache/AutoIncCache.h"
+#include CONFIG_FILE
+// #include "config.h"  
+#include <random>
+#include <ctime>
+#include <numeric>
+#include <functional>
+
+class DynamicBenchmark : public Benchmark
+{
+public:
+    DynamicBenchmark(Backend& backend): Benchmark(backend){};
+    DynamicBenchmark(Backend& backend, unsigned int sequential_startidx, int threadId = -1, bool WhetherSequence=false, unsigned int CURR_QUERY = MAX_QUERIES);
+    ~DynamicBenchmark() = default;
+    void init(unsigned int sequential_startidx = 0, int threadId = -1, bool WhetherSequence=false, unsigned int CURR_QUERY = MAX_QUERIES);
+    
+    bool create_database();
+    bool load_database();
+    bool step();
+    bool is_end();
+    bool cleanup();
+
+    bool read_record(int key, std::vector<std::string>& results);
+    bool insert_record(int key, std::vector<std::string>& values);
+    
+    std::string generate_read_sql(int key);
+    std::string generate_insert_sql(int key, std::vector<std::string>& values);
+
+public:
+    std::default_random_engine generator; // generator used for zipfian distribution
+
+
+    // unsigned int next_key = 0; // this has moved to Backend class to avoid duplicate key error across threads.
+    unsigned int current_query = 0;
+    std::random_device rd;
+    std::mt19937 rng;
+
+    unsigned int max_records = MAX_RECORDS; // number of records in the database
+    unsigned int max_fields = MAX_FIELDS; // number of fields in each record
+    unsigned int max_field_size = MAX_FIELD_SIZE; // size of each field (in chars)
+    unsigned int max_query = MAX_QUERIES; // number of queries to execute
+    double query_proportion = QUERY_PROPORTION; // proportion of read queries, the rest are insert queries
+
+    bool whether_sequence = false;
+    unsigned int unified_sequential_counter = 0;
+	int threadId = -1;
+};

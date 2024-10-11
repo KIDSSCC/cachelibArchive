@@ -21,18 +21,20 @@
 #include <config.h>
 #include "shm_util.h"
 
-//Command line parameter -p -c
+//Command line parameter -p -c -d
 DEFINE_int32(p, -1, "Pool size");
 DEFINE_int32(c, -1, "Cache size");
+DEFINE_int32(d, 0, "Default pool");
+DEFINE_int32(g, 0, "Granularity");
 
 
 using namespace std;
 using namespace facebook::cachelib_examples;
 
-int msgid;
 atomic_flag slockForRecord = ATOMIC_FLAG_INIT;
 map<string, pair<int, int>> poolRecord;
 map<string, CacheHitStatistics*> name2CHS;
+size_t size_conv = SIZE_CONV;
 
 double timeval_to_seconds(const timeval& t) {
     return t.tv_sec + t.tv_usec / 1000000.0;
@@ -49,7 +51,7 @@ map<string, uint64_t> getCacheStats()
 	set<PoolId> allPool = getPoolIds_();
 	for(const auto& pid:allPool){
 		PoolStats currPoolStat = getPoolStat(pid);
-		res[currPoolStat.poolName] = currPoolStat.poolSize / SIZE_CONV;
+		res[currPoolStat.poolName] = currPoolStat.poolSize / size_conv;
 	}	
 	return res;
 }
@@ -72,16 +74,16 @@ void executeNewConfig(string config){
 	}
 	// first,shrinkle pool
 	for(int i=0;i<(int)poolNames.size();i++){
-		size_t currSize = getPoolSizeFromName(poolNames[i])/SIZE_CONV;
+		size_t currSize = getPoolSizeFromName(poolNames[i]) / size_conv;
 		if(currSize>poolSizes[i]){
-			resizePool(poolNames[i], poolSizes[i] * SIZE_CONV);
+			resizePool(poolNames[i], poolSizes[i] * size_conv);
 		}
 	}
 	// second, grow pool
 	for(int i=0;i<(int)poolNames.size();i++){
-		size_t currSize = getPoolSizeFromName(poolNames[i])/SIZE_CONV;
+		size_t currSize = getPoolSizeFromName(poolNames[i]) / size_conv;
 		if(currSize<poolSizes[i]){
-			resizePool(poolNames[i], poolSizes[i] * SIZE_CONV);
+			resizePool(poolNames[i], poolSizes[i] * size_conv);
 		}
 	}
 }
@@ -90,25 +92,25 @@ void sharedMemCtl(string appName, int no, CacheHitStatistics* chs)
 {
     int SHARED_MEMORY_SIZE = sizeof(shm_stru);
     string localAppName = appName;
-    cout<<"----- Register SHM: "<<localAppName<<endl;
+	XLOG(INFO) << "Register SHM: " << localAppName;
     // create new shared memory
     int shm_fd = shm_open(localAppName.c_str(), O_CREAT | O_RDWR, 0666);
     if (shm_fd == -1) 
     {
-        perror("Error creating shared memory");
+		XLOG(ERR) << "Error opening shared memory";
         exit(EXIT_FAILURE);
     }
     // adjust the size of shared memory
     if (ftruncate(shm_fd, SHARED_MEMORY_SIZE) == -1) 
     {
-        perror("Error resizing shared memory");
+		XLOG(ERR) << "Error resizing shared memory";
         exit(EXIT_FAILURE);
     }
     // map the shared memory to the process memory
     void* shared_memory = mmap(NULL, SHARED_MEMORY_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
     if (shared_memory == MAP_FAILED) 
     {
-        perror("Error mapping shared memory");
+		XLOG(ERR) << "Error mapping shared memory";
         exit(EXIT_FAILURE);
     }
 	shm_stru *getMessage = static_cast<shm_stru*>(shared_memory);
@@ -133,9 +135,9 @@ void sharedMemCtl(string appName, int no, CacheHitStatistics* chs)
 		while(sem_trywait(semaphore)!=0){
 			//can't get semaphore
 			if(waitCount>MAX_WAIT){
-				cout<<"---------- "<<localAppName<<" Begin Sleeping\n";
+				XLOG(WARNING) << localAppName << "Begin Sleeping";
 				sem_wait(semaphore);
-				cout<<"---------- "<<localAppName<<" Be Awakened\n";
+				XLOG(WARNING) << localAppName << "Be Awakened";
 				break;
 			}
 			waitCount++;
@@ -219,7 +221,7 @@ void sharedMemCtl(string appName, int no, CacheHitStatistics* chs)
 	poolRecord[chs->poolName].first--;
 	slockForRecord.clear(memory_order_release);
 
-	cout<<"----- Close SHM: "<<localAppName<<endl;
+	XLOG(INFO) << "Close SHM: " << localAppName;
 	return;
 }
 
@@ -227,7 +229,7 @@ void listen_addpool()
 {
 	int server_socket = socket(AF_INET, SOCK_STREAM, 0);
 	if(server_socket == -1){
-		cout<<"Error: Failed to create socket\n";
+		XLOG(ERR) << "Error: Failed to create socket";
 		return;
 	}
 	//bind address and port
@@ -238,23 +240,23 @@ void listen_addpool()
 	int yes = 1;
 	// allow socket reuse shortly after it is closed
 	if(setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes))==-1){
-		cout << "Error: Failed to set socket\n";
+		XLOG(ERR) << "Error: Failed to set socket";
 		return;
 	}
 	if (bind(server_socket, (struct sockaddr *)&server_address, sizeof(server_address)) == -1) {
-		cout << "Error: Failed to bind\n";
+		XLOG(ERR) << "Error: Failed to bind";
 		return ;
 	}
 	//listen the connection
 	if (listen(server_socket, SOMAXCONN) == -1) {
-		cout << "Error: Failed to listen\n";
+		XLOG(ERR) << "Error: Failed to listen";
 		return ;
     }
 	
     while(true){
 		int client_socket = accept(server_socket, nullptr,nullptr);
 		if(client_socket == -1){
-			cout<<"Failed to accept\n";
+			XLOG(ERR) << "Error: Failed to accept";
 			continue;
 		}
 		char buf[1024];
@@ -262,7 +264,7 @@ void listen_addpool()
 		//read the client message
 		int bytesReceived = recv(client_socket, buf, sizeof(buf), 0);
 		if(bytesReceived == -1){
-			cout<<"Error: failed to receive data\n";
+			XLOG(ERR) << "Error: Failed to receive data";
 			close(client_socket);
 			continue;
 		}
@@ -295,7 +297,7 @@ void listen_addpool()
 			string sendInfo = to_string(pid) + " " + shmId;
 			int bytesSent = send(client_socket, sendInfo.c_str(), sendInfo.size(), 0);
 			if(bytesSent == -1){
-				cout<<"Error:failed to send response\n";
+				XLOG(ERR) << "Error: Failed to send response";
 			}
 			
 		}else if(buf[0]=='G'){
@@ -308,12 +310,11 @@ void listen_addpool()
 			string serialized_map = oss.str();
 			int bytesSent = send(client_socket, serialized_map.c_str(),serialized_map.size(), 0);
 			if(bytesSent == -1){
-				cout<<"Error:Failed to send response\n";
+				XLOG(ERR) << "Error: Failed to send response";
 			}
 		}else if(buf[0]=='S'){
 			//set Status
 			string getMessage = string(buf, 2, bytesReceived-2);
-			//cout<<"getMessage: "<<getMessage<<endl;
 			executeNewConfig(getMessage);
 
 		}else if(buf[0]=='E'){
@@ -331,12 +332,20 @@ void listen_addpool()
 
 int main(int argc, char* argv[])
 {
+	folly::Init init(&argc, &argv);
+
 	int poolSize = -1;
 	int cacheSize = -1;
-    folly::Init init(&argc, &argv);
+	int defaultPool = 0;
+	size_t g_tmp = 0;
 	cacheSize = FLAGS_c;
 	poolSize = FLAGS_p;
-    initializeCache(cacheSize, poolSize);
+	defaultPool = FLAGS_d;
+	g_tmp = FLAGS_g;
+
+	size_conv = g_tmp==0?size_conv:(g_tmp * MB_SIZE);
+
+    initializeCache(cacheSize, poolSize, defaultPool);
     
     thread t_listenAddPool(listen_addpool);
     t_listenAddPool.join();

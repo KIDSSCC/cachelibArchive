@@ -8,6 +8,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Compiler flags
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O2 -Wall")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fsanitize=address")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g")
 
 # add leveldb to cmake_prefix_path
 list(APPEND CMAKE_PREFIX_PATH "/usr/local/lib/cmake/leveldb")
@@ -21,9 +23,6 @@ pkg_search_module(LIBMONGOCXX REQUIRED libmongocxx)
 
 # 检索配置文件列表
 file(GLOB CONFIG_FILE "${CMAKE_CURRENT_LIST_DIR}/src/config/*.h")
-message("-----")
-message(STATUS "My list: ${CONFIG_FILE}")
-message("-----")
 # Set include directories using target_include_directories
 file(GLOB_RECURSE SOURCES ${CMAKE_CURRENT_LIST_DIR}/src/*.cpp)
 
@@ -31,11 +30,12 @@ file(GLOB_RECURSE SOURCES ${CMAKE_CURRENT_LIST_DIR}/src/*.cpp)
 foreach(CONFIG_ ${CONFIG_FILE})
     get_filename_component(FILE_NAME ${CONFIG_} NAME)
     string(REGEX REPLACE "\\.h$" "" CONFIG_ID ${FILE_NAME})
-    add_executable("bin_${CONFIG_ID}" ${SOURCES})
+    set(TARGET_BIN "bin_${CONFIG_ID}")
+    add_executable("${TARGET_BIN}" ${SOURCES})
     # 定义编译选项
-    target_compile_definitions("bin_${CONFIG_ID}" PRIVATE CONFIG_FILE="${CONFIG_}")
+    target_compile_definitions("${TARGET_BIN}" PRIVATE CONFIG_FILE="${CONFIG_}")
 
-    target_include_directories("bin_${CONFIG_ID}" PRIVATE 
+    target_include_directories("${TARGET_BIN}" PRIVATE 
         ${leveldb_INCLUDE_DIRS}
         ${LIBMONGOCXX_INCLUDE_DIRS}
         ${CMAKE_CURRENT_LIST_DIR}/src
@@ -45,7 +45,7 @@ foreach(CONFIG_ ${CONFIG_FILE})
     )
 
     # 链接库
-    target_link_libraries("bin_${CONFIG_ID}" PRIVATE
+    target_link_libraries("${TARGET_BIN}" PRIVATE
         mysqlcppconn
         leveldb::leveldb
         ${LIBMONGOCXX_LIBRARIES}
@@ -56,8 +56,8 @@ foreach(CONFIG_ ${CONFIG_FILE})
     )
 
     # Handle the address sanitizer specifically for Debug builds
-    target_compile_options("bin_${CONFIG_ID}" PRIVATE "$<$<CONFIG:DEBUG>:-fsanitize=address>")
-    target_link_options("bin_${CONFIG_ID}" PRIVATE "$<$<CONFIG:DEBUG>:-fsanitize=address>")
+    target_compile_options("${TARGET_BIN}" PRIVATE "$<$<CONFIG:DEBUG>:-fsanitize=address>")
+    target_link_options("${TARGET_BIN}" PRIVATE "$<$<CONFIG:DEBUG>:-fsanitize=address>")
 endforeach()
 
 

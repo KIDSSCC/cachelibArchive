@@ -24,6 +24,7 @@ rm -rf Build
 # rm -rf *.tdi
 rm -rf *.res
 rm -rf *.log
+rm -rf log/*
 rm -rf /dev/shm/*
 rm -rf /SSDPath/nvmcache/*
 mkdir -p /home/md/SHMCachelib/Build

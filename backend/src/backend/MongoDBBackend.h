@@ -7,6 +7,7 @@
 #include <vector>
 #include <string>
 #include <mutex>
+#include CONFIG_FILE
 
 #define MONGODB_URI "mongodb://localhost:27017"
 #define COLLECTION_PREFIX "usertable"

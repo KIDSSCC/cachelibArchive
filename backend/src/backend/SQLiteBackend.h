@@ -6,8 +6,9 @@
 #include <iostream>
 #include <mutex>
 #include <sqlite3.h>
+#include CONFIG_FILE
 
-#define SQLITE_DIR "./sqlite"
+#define SQLITE_DIR "./diskdata/sqlite"
 #define SQLITE_TABLE_PREFIX "usertable"
 
 class SQLiteBackend : public Backend {

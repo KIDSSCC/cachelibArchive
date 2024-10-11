@@ -97,6 +97,7 @@ Describe the entire data storage structure:
 /* Default operate set */
 #define TDB_DAT_SUFFIX			".tdb"		/* database file suffix */
 #define TDB_IDX_SUFFIX			".tdi"		/* index file suffix */
+#define TDB_PATH_PREFIX			"diskdata/"
 
 #define TDB_INT_SIZE			4			/* all int size */
 #define TDB_PRT_SIZE			4			/* all pointer size */

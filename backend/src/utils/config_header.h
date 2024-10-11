@@ -1,0 +1,8 @@
+#pragma once
+
+// distribution of query
+#define DISTRIBUTION_ZIPFIAN 1
+#define DISTRIBUTION_UNIFORM 2
+#define DISTRIBUTION_SEQUENTIAL 3
+#define DISTRIBUTION_HOTSPOT 4
+#define DISTRIBUTION_EXPONENTIAL 5

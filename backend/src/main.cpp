@@ -64,7 +64,7 @@ int main(int argc, char* argv[]) {
                 profile_file = argv[i + 1];
             }
 		}else if(arg=="--loginfo"){
-			if(i+1<argc){
+			if(i + 1 < argc){
 				logInfo = std::stoi(argv[i+1]);
 			}
 		}else if(arg=="--maxquery"){
@@ -104,7 +104,7 @@ int main(int argc, char* argv[]) {
             backend.enable_cache(unified_cache);
         }
         
-        YCSBBenchmark benchmark(backend);
+        YCSBBenchmark benchmark(backend, 0, -1, false);
         benchmark.prepare();
         std::cout << "Preparation done, " << g_next_insert_key << " records inserted." << std::endl;
     }
@@ -116,7 +116,7 @@ int main(int argc, char* argv[]) {
         double hitrate = -1;
         bool iterate = true;
         int count = 0;
-        while(lasthitrate<0||std::fabs(hitrate-lasthitrate)>0.005){
+        while(lasthitrate<0||std::fabs(hitrate-lasthitrate)>0.01){
             
             count++;
             lasthitrate = hitrate;
@@ -125,6 +125,7 @@ int main(int argc, char* argv[]) {
             std::vector<std::thread> threads;
             for (int i = 0; i < num_threads; i++){
                 threads.emplace_back([cache_enabled, currentMaxQueries, &iterate,
+                                &total_throughput, &total_usedtime, &total_latencies, &total_latencies_mutex,
                                 &total_hit_count, &total_records_executed, &sequential_startidx]() {
                     CachelibClient cacheclient;
                     BACKEND backend(0);
@@ -132,24 +133,52 @@ int main(int argc, char* argv[]) {
                     	cacheclient.addpool(UNIFIED_CACHE_POOL);
                         backend.enable_cache(cacheclient);
                     }
+                    YCSBBenchmark benchmark(backend);
+                    int curr_query = currentMaxQueries;
                     if(iterate)
                     {
-                        YCSBBenchmark benchmark(backend, sequential_startidx, -1, true, MAX_RECORDS);
+                        curr_query = MAX_RECORDS;
+                        #if DISTRIBUTION == DISTRIBUTION_SEQUENTIAL
+                            curr_query = currentMaxQueries;
+                        # endif
+                        benchmark.init(sequential_startidx, -1, true, curr_query);
                         benchmark.run();
-                        total_hit_count += backend.hit_count;
-                        total_records_executed += benchmark.records_executed;
-                        sequential_startidx = (sequential_startidx + MAX_RECORDS) % MAX_RECORDS;
                         iterate = false;
+
+                        // YCSBBenchmark benchmark(backend, sequential_startidx, -1, true, curr_query);
+                        // benchmark.run();
+                        // total_hit_count += backend.hit_count;
+                        // total_records_executed += benchmark.records_executed;
+                        // sequential_startidx = (sequential_startidx + curr_query) % MAX_RECORDS;
+                        // iterate = false;
                     }
                     else
                     {
-                        YCSBBenchmark benchmark(backend, sequential_startidx, -1, false, currentMaxQueries);
+                        benchmark.init(sequential_startidx, -1, false, curr_query);
                         benchmark.run();
-                        total_hit_count += backend.hit_count;
-                        sequential_startidx = (sequential_startidx + currentMaxQueries) % MAX_RECORDS;
-                        total_records_executed += benchmark.records_executed;
-                    }
 
+                        // YCSBBenchmark benchmark(backend, sequential_startidx, -1, false, currentMaxQueries);
+                        // benchmark.run();
+                        // total_hit_count += backend.hit_count;
+                        // sequential_startidx = (sequential_startidx + currentMaxQueries) % MAX_RECORDS;
+                        // total_records_executed += benchmark.records_executed;
+                    }
+                    sequential_startidx = (sequential_startidx + curr_query) % MAX_RECORDS;
+
+                    // write to log
+                    double throughput = (double) benchmark.records_executed / (double) benchmark.millis_elapsed * 1000;
+                    std::vector<unsigned int> latencies = benchmark.latencies_ns;
+                    unsigned int hit_count = backend.hit_count;
+                    unsigned int total_count = benchmark.records_executed;
+                    // aggregate the results
+                    total_throughput = total_throughput + throughput;
+                    total_usedtime = total_usedtime + benchmark.millis_elapsed;
+                    total_hit_count += hit_count;
+                    total_records_executed += total_count;
+                    {
+                        std::lock_guard<std::mutex> lock(total_latencies_mutex);
+                        total_latencies.insert(total_latencies.end(), latencies.begin(), latencies.end());
+                    }
                 });
             }
             for (auto& thread : threads) {
@@ -157,10 +186,55 @@ int main(int argc, char* argv[]) {
             }
             BACKEND backend(0);
             backend.clean_up();
-            hitrate = (double)total_hit_count/(double)total_records_executed;
-            total_hit_count = 0;
-            total_records_executed = 0;
-            std::cout<<"last hit rate is: "<<lasthitrate<<" and hit rate is: "<<hitrate<<std::endl;
+
+            // 数据整合，准备写入日志
+            unsigned int average_percentile = average(total_latencies);
+            unsigned int total_percentile_99 = percentile(total_latencies, 0.99);
+            unsigned int total_percentile_95 = percentile(total_latencies, 0.95);
+            unsigned int total_percentile_50 = percentile(total_latencies, 0.50);
+            hitrate = (double) total_hit_count / (double) total_records_executed;
+            OUTPUT << "last hit rate is: "<<lasthitrate<<" and hit rate is: "<<hitrate<<std::endl;
+            if (!profile_file.empty()) {
+                std::ofstream out(profile_file + "_meta.log", std::ios::app);
+                out << total_percentile_99 << " " 
+					<< total_percentile_95 << " " 
+					<< total_percentile_50 << " " 
+					<< average_percentile << " " 
+					<< total_throughput << " " 
+					<< hitrate << std::endl;
+            }
+            
+            if(!profile_file.empty()) {
+                std::ofstream out(profile_file + "_subItem.log", std::ios::app);
+				switch(logInfo){
+					case 0:
+						out << total_percentile_99 << std::endl;
+						break;
+					case 1:
+						out << total_percentile_95 << std::endl;
+						break;
+					case 2:
+						out << total_percentile_50 << std::endl;
+						break;
+					case 3:
+						out << average_percentile << std::endl;
+						break;
+					case 4:
+						out << total_throughput << std::endl;
+						break;
+					case 5:
+						out << hitrate << std::endl;
+						break;
+					default:break;
+				}
+                //固定向日志输出命中率
+                std::ofstream out2(profile_file + "_subItem2.log", std::ios::app);
+                out2 << hitrate << std::endl;
+            }
+            // hitrate = (double)total_hit_count/(double)total_records_executed;
+            // total_hit_count = 0;
+            // total_records_executed = 0;
+            // std::cout<<"last hit rate is: "<<lasthitrate<<" and hit rate is: "<<hitrate<<std::endl;
         }
         std::cout<<"warmup time is: "<<count<<std::endl;
     }
@@ -269,6 +343,9 @@ int main(int argc, char* argv[]) {
 						break;
 					default:break;
 				}
+                //固定向日志输出命中率
+                std::ofstream out2(profile_file + "_subItem2.log", std::ios::app);
+                out2 << total_hitrate << std::endl;
             }
             // if(!profile_file.empty()) {
             //     std::ofstream out(profile_file + "_hitrate.log", std::ios::app);

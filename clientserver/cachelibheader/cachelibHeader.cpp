@@ -8,6 +8,7 @@ std::unique_ptr<Cache> gCache_;
 PoolId defaultPool_;
 size_t cacheSize = CACHE_SIZE + REDUNDARY_SIZE;
 size_t poolSize = POOL_SIZE;
+bool create_default_pool = false;
 
 size_t defaultPoolSize = CACHE_SIZE;
 
@@ -46,37 +47,39 @@ void cacheConfigure(CacheConfig& config)
     config.validate();   
 }
 
-void initializeCache(int cache_size, int pool_size)
+void initializeCache(int cache_size, int pool_size, int default_pool)
 {
-    cacheSize = cache_size<0?cacheSize:(size_t)cache_size * GB_SIZE;
+    cacheSize = cache_size<0?cacheSize:((size_t)cache_size * MB_SIZE + REDUNDARY_SIZE);
     poolSize = pool_size<0?poolSize:(size_t)pool_size * MB_SIZE;
-    std::cout << "----- Cache Size: " << cacheSize / MB_SIZE << " MB " << std::endl;
-    std::cout << "----- Each Pool Size: "<< poolSize / MB_SIZE << " MB " << std::endl;
+    create_default_pool = default_pool || CREATE_DEFAULT_POOL;
+    XLOG(INFO) << "---------- CacheLib Info ----------";
+    XLOG(INFO) << "Cache Size is: " << cacheSize / MB_SIZE << " MB";
+    XLOG(INFO) << "Each Pool Size is: " << poolSize / MB_SIZE << " MB";
     CacheConfig config;
     cacheConfigure(config);
     gCache_ = std::make_unique<Cache>(config);
-    #if CREATE_DEFAULT_POOL
-        std::cout<<"----- Global Pool Enabled\n";
-        defaultPool_ = gCache_->addPool("default_",defaultPoolSize);
-        std::cout<<"----- Global Pool Size: "<< defaultPoolSize / MB_SIZE << "MB" << std::endl;
-    #endif
-    std::cout<<"----- Create Cache Successfully\n";
+    if(create_default_pool)
+    {
+        XLOG(INFO) << "Global Pool Enabled";
+        defaultPool_ = gCache_->addPool("default_",(size_t)cache_size * MB_SIZE);
+        XLOG(INFO) << "Global Pool Size is: " << cache_size << " MB";
+    }
+    XLOG(INFO) << "----------Info End ----------";
+    XLOG(INFO) << "Create Cache Successfully";
 }
 
 void destroyCache()
 {
     gCache_.reset();
-    std::cout<<"----- Destroy Cache Successfully\n";
+    XLOG(INFO) << "Destroy Cache Successfully";
 }
 
 int addpool_(std::string poolName)
 {
-    #if CREATE_DEFAULT_POOL
+    if(create_default_pool)
         return 0;
-    #endif
     cachelib::PoolId poolId = gCache_->getPoolId(poolName);
     if(poolId==-1){
-        // std::cout<<"pool size is: "<<poolSize<<std::endl;
         poolId = gCache_->addPool(poolName, poolSize);
     }
     return poolId;
@@ -127,7 +130,7 @@ size_t getPoolSizeFromName(std::string poolName){
 	PoolId pid = gCache_->getPoolId(poolName);
     if(pid == -1)
     {
-        std::cout<<"----------Error: pool "<< poolName <<" not exists\n";
+        XLOG(ERR) << "Error: pool "<< poolName <<" not exists";
     }
 	PoolStats pstats = getPoolStat(pid);
 	return pstats.poolSize;
@@ -137,7 +140,7 @@ void resizePool(std::string poolName, size_t newSize){
 	PoolId pid = gCache_->getPoolId(poolName);
 	PoolStats poolStat = gCache_->getPoolStats(pid);
 	size_t currSize = poolStat.poolSize;
-	std::cout<<"----- Change "<<poolName<<" From "<<currSize/MB_SIZE<<" MB To "<<newSize/MB_SIZE<<" MB "<<std::endl;
+    XLOG(ERR) <<"Change poolName: "<< poolName <<" From "<< currSize/MB_SIZE <<" MB To "<< newSize/MB_SIZE <<" MB ";
 	if(newSize>currSize){
 		//growPool
 		gCache_->growPool(pid, newSize-currSize);

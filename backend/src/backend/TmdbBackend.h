@@ -5,8 +5,9 @@
 #include "utils/randstring.h"
 #include <iostream>
 #include "tmdb.h"
+#include CONFIG_FILE
 
-#define TMDB_TABLE_PREFIX "tmdb_1"
+#define TMDB_TABLE_PREFIX "diskdata/"
 
 class TmdbBackend : public Backend {
 public:

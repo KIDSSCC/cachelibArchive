@@ -9,7 +9,7 @@
 #include <mutex>
 
 #define BASE_PREFIX "/home/md/workloadData/"
-#define LEVELDB_DIR "leveldb/" UNIFIED_CACHE_POOL
+#define LEVELDB_DIR "diskdata/leveldb/" UNIFIED_CACHE_POOL
 
 class LevelDBBackend : public Backend {
 private:

@@ -5,6 +5,7 @@ CachelibClient::CachelibClient():gen(rd()), dis(0.0, 1.0)
 {
     this->getHit=0;
 	this->shmId = "";
+    logger.setLogLevel(LogLevel::K_DEBUG);
 }
 CachelibClient::~CachelibClient(){
 	if(this->shmId != ""){
@@ -36,10 +37,8 @@ void CachelibClient::prepare_shm(string appName)
     {
         this->shm_fd = shm_open(appName.c_str(), O_RDWR, 0666);
     } while (this->shm_fd == -1);
-	//std::cout<<"after get shm\n";
     // 将共享内存映射到进程的地址空间
     this->shared_memory = mmap(NULL, SHARED_MEMORY_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, this->shm_fd, 0);
-	//std::cout<<"after map\n";
     if (this->shared_memory == MAP_FAILED) 
     {
         perror("Error mapping shared memory");
@@ -51,15 +50,12 @@ void CachelibClient::prepare_shm(string appName)
     do{
         this->semaphore = sem_open(appName.c_str(), 0);
     } while (this->semaphore==SEM_FAILED);
-	//std::cout<<"after get sema 1\n";
     do{
         this->semaphore_Server = sem_open(sem_server.c_str(), 0);
     } while (this->semaphore_Server==SEM_FAILED);
-	//std::cout<<"after get sema 2\n";
     do{
         this->semaphore_GetBack = sem_open(sem_getback.c_str(), 0);
     } while (this->semaphore_GetBack==SEM_FAILED);
-	//std::cout<<"after get sema 3\n";
 
 
     shm_stru* message=static_cast<shm_stru*>(this->shared_memory);
@@ -69,7 +65,7 @@ void CachelibClient::prepare_shm(string appName)
 
 int CachelibClient::addpool(string poolName)
 {
-    cout<<"------shared memory------\n";
+    logger.info("----- Shared Memory -----");
 	int client_socket = socket(AF_INET, SOCK_STREAM, 0);
 	if(client_socket == -1){
 		cout<<"Error: Failed to create socket\n";

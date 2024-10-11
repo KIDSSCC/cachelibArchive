@@ -1,7 +1,7 @@
 #include "TmdbBackend.h"
 
 TmdbBackend::TmdbBackend(int thread_id):Backend(thread_id) {
-    disk_name = UNIFIED_CACHE_POOL;
+    disk_name = string(TMDB_TABLE_PREFIX) + string(UNIFIED_CACHE_POOL);
     string idx_file_name = disk_name + ".tdi";
     string dat_file_name = disk_name + ".tdb";
     char mode[] = "w";

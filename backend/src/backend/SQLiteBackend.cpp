@@ -19,7 +19,9 @@ SQLiteBackend::SQLiteBackend(int thread_id) : Backend(thread_id) {
         throw std::runtime_error("SQLite is not compiled with multi-threading support");
     }
 
-    db_path = SQLITE_DIR "/db" + std::to_string(thread_id) + ".db";
+    // db_path = SQLITE_DIR "/db" + std::to_string(thread_id) + ".db";
+    // 每个workload对应单独数据库
+    db_path = SQLITE_DIR "/" UNIFIED_CACHE_POOL ".db";
     {
         std::lock_guard<std::mutex> lock(mtx);
         if (sqlite3_open(db_path.c_str(), &db)) {
@@ -29,7 +31,9 @@ SQLiteBackend::SQLiteBackend(int thread_id) : Backend(thread_id) {
         }
         sqlite3_busy_timeout(db, 10000); // it should be enough for most cases
     }
-    table_name = SQLITE_TABLE_PREFIX + std::to_string(thread_id);
+    // table_name = SQLITE_TABLE_PREFIX + std::to_string(thread_id);
+    // 多线程访问到同一张表上
+    table_name = SQLITE_TABLE_PREFIX;
 }
 
 SQLiteBackend::~SQLiteBackend() {

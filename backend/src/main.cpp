@@ -127,9 +127,9 @@ int main(int argc, char* argv[]){
     std::tm specific_time = {};
     specific_time.tm_year = 2024 - 1900; // 年份从1900开始
     specific_time.tm_mon = 11 - 1;         // 月份从0开始
-    specific_time.tm_mday = 13;            // 日
-    specific_time.tm_hour = 19;
-    specific_time.tm_min = 0;
+    specific_time.tm_mday = 18;            // 日
+    specific_time.tm_hour = 12;
+    specific_time.tm_min = 8;
     specific_time.tm_sec = 0; 
 
     std::time_t specific_time_t = std::mktime(&specific_time);
@@ -144,11 +144,11 @@ int main(int argc, char* argv[]){
 
     //开始执行
     while(do_run){
-        // std::ofstream outx(profile_file + "_subItem.log", std::ios::app);
-        // std::ofstream outy(profile_file + "_subItem2.log", std::ios::app);
-        // auto sub_start = std::chrono::system_clock::now();
-        // outx << "sub start time is: " << std::chrono::duration_cast<std::chrono::seconds>(sub_start - specific_time_point).count() << std::endl;
-        // outy << "sub start time is: " << std::chrono::duration_cast<std::chrono::seconds>(sub_start - specific_time_point).count() << std::endl;
+        std::ofstream outx(profile_file + "_subItem.log", std::ios::app);
+        std::ofstream outy(profile_file + "_subItem2.log", std::ios::app);
+        auto sub_start = std::chrono::system_clock::now();
+        outx << "sub start time is: " << std::chrono::duration_cast<std::chrono::seconds>(sub_start - specific_time_point).count() << std::endl;
+        outy << "sub start time is: " << std::chrono::duration_cast<std::chrono::seconds>(sub_start - specific_time_point).count() << std::endl;
 
         std::vector<std::thread> threads;
         for (int i = 0; i < num_threads; i++) {
@@ -184,14 +184,14 @@ int main(int argc, char* argv[]){
         BACKEND backend(0);
         backend.clean_up();
 
-        // auto sub_end = std::chrono::system_clock::now();
-        // outx << "sub end time is: " << std::chrono::duration_cast<std::chrono::seconds>(sub_end - specific_time_point).count() << std::endl;
-        // outy << "sub end time is: " << std::chrono::duration_cast<std::chrono::seconds>(sub_end - specific_time_point).count() << std::endl;
+        auto sub_end = std::chrono::system_clock::now();
+        outx << "sub end time is: " << std::chrono::duration_cast<std::chrono::seconds>(sub_end - specific_time_point).count() << std::endl;
+        outy << "sub end time is: " << std::chrono::duration_cast<std::chrono::seconds>(sub_end - specific_time_point).count() << std::endl;
 
-        // unsigned int average_percentile = average(total_latencies);
-        // unsigned int total_percentile_99 = percentile(total_latencies, 0.99);
-        unsigned int average_percentile = 0;
-        unsigned int total_percentile_99 = 0;
+        unsigned int average_percentile = average(total_latencies);
+        unsigned int total_percentile_99 = percentile(total_latencies, 0.99);
+        // unsigned int average_percentile = 0;
+        // unsigned int total_percentile_99 = 0;
         average_and_percentile(total_latencies, &average_percentile, &total_percentile_99);
         double total_hitrate = (double) total_hit_count / (double) total_records_executed;
         total_usedtime = total_usedtime/num_threads;
@@ -200,9 +200,9 @@ int main(int argc, char* argv[]){
         // OUTPUT << "Total average latency: " << average_percentile << " ns" << std::endl;
         // OUTPUT << "Total Used Time: " << total_usedtime << " ms" << std::endl;
 
-        // auto sub_sub_end = std::chrono::system_clock::now();
-        // outx << "sub sub end time is: " << std::chrono::duration_cast<std::chrono::seconds>(sub_sub_end - specific_time_point).count() << std::endl;
-        // outy << "sub sub end time is: " << std::chrono::duration_cast<std::chrono::seconds>(sub_sub_end - specific_time_point).count() << std::endl;
+        auto sub_sub_end = std::chrono::system_clock::now();
+        outx << "sub sub end time is: " << std::chrono::duration_cast<std::chrono::seconds>(sub_sub_end - specific_time_point).count() << std::endl;
+        outy << "sub sub end time is: " << std::chrono::duration_cast<std::chrono::seconds>(sub_sub_end - specific_time_point).count() << std::endl;
 
 
         if (!profile_file.empty()) {
@@ -255,18 +255,18 @@ int main(int argc, char* argv[]){
         //动态负载控制
         end_time = std::chrono::system_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::seconds>(end_time - start_time).count();
-        // outx << "start time is:" << std::chrono::duration_cast<std::chrono::seconds>(start_time - specific_time_point).count()
-        //     << " end time is:" << std::chrono::duration_cast<std::chrono::seconds>(end_time - specific_time_point).count()
-        //     << " duration is:" << duration<< std::endl;
-        // outy << "start time is:" << std::chrono::duration_cast<std::chrono::seconds>(start_time - specific_time_point).count()
-        //     << " end time is:" << std::chrono::duration_cast<std::chrono::seconds>(end_time - specific_time_point).count()
-        //     << " duration is:" << duration<< std::endl;
+        outx << "start time is:" << std::chrono::duration_cast<std::chrono::seconds>(start_time - specific_time_point).count()
+            << " end time is:" << std::chrono::duration_cast<std::chrono::seconds>(end_time - specific_time_point).count()
+            << " duration is:" << duration<< std::endl;
+        outy << "start time is:" << std::chrono::duration_cast<std::chrono::seconds>(start_time - specific_time_point).count()
+            << " end time is:" << std::chrono::duration_cast<std::chrono::seconds>(end_time - specific_time_point).count()
+            << " duration is:" << duration<< std::endl;
         if(duration >= threshold) {
             threshold = RUNTIME;
             start_time = std::chrono::system_clock::now();
-            // outx << "workload change, duration is:" << duration << " seconds, next phase is: " << threshold<< std::endl;
-            // outy << "workload change, duration is:" << duration << " seconds, next phase is: " << threshold<< std::endl;
-            // OUTPUT << "---------- Time Out! ----------" << std::endl;
+            outx << "workload change, duration is:" << duration << " seconds, next phase is: " << threshold<< std::endl;
+            outy << "workload change, duration is:" << duration << " seconds, next phase is: " << threshold<< std::endl;
+            OUTPUT << "---------- Time Out! ----------" << std::endl;
             generator_idx++;
             if(generator_idx>=(int)generators.size()){
                 // OUTPUT << "All workloads finished!" << std::endl;

@@ -61,6 +61,7 @@ def cache_estimate(allocation, hitrate, total_resources):
     return allocation
 
 def perturb_list_integers_no_same(lst, n_resource, epsilon=6):
+    '''epsilon ： 扰动幅度'''
     # 计算元素的总和
     total = n_resource
     # 对每个元素进行整数扰动，确保扰动后值不同于原值

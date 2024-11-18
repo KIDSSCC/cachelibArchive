@@ -59,9 +59,10 @@ def for_reinforcement_learning():
     file_.close()
 
 def default_sample():
-    time.sleep(200)
+    '''作为一个单独的线程挂载在后端，统计每个工作负载变换后尾延迟表现情况，计算平均值并记录'''
+    time.sleep(200)         # 等待warmup结束
     epoch = 10
-    file_ = open('ucb_sample1.log', 'w', newline='')
+    file_ = open('log/cat_latency.log', 'w', newline='')
     start_time = time.time()
 
     tasklist = [
@@ -79,10 +80,10 @@ def default_sample():
     print('----- finish warmup phase')
     for _ in range(3):
         print('----- new phase waiting')
-        time.sleep(200)
+        time.sleep(60)     # 只统计后九分钟
         print('----- new phase begin')
         for i in range(epoch):
-            time.sleep(20)
+            time.sleep(20)  # 等待20s新配置生效
             tail_latency = []
             log_files = ['/home/md/SHMCachelib/log/bin_' + x + '_subItem.log' for x in tasklist]
             for log in log_files:

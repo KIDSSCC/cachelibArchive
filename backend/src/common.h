@@ -11,5 +11,6 @@
 #include <vector>
 #include <chrono>
 #include <memory>
+#include <queue>
 
 extern std::atomic<int> g_next_insert_key;

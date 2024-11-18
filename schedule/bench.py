@@ -59,7 +59,7 @@ def clear_groups():
         subprocess.run(delete_command, input=passwd, shell=True, text=True, capture_output=True)
 
 def set_cpu_cores(pids, cores):
-    core_index = 0
+    core_index = 28
     if isinstance(cores, list):
         for i in range(len(pids)):
             cpu_to_set = map(str, range(core_index, core_index + cores[i]))
@@ -150,7 +150,7 @@ def close_server():
 def get_binary():
     # # Build目录下获取可执行文件，随机打乱后从中选择5个任务
     bin_files = [[f] for f in os.listdir(directory_path) if f.startswith("bin")]
-    mysql_threads = [1, 2, 2, 4, 4]
+    mysql_threads = [4, 2, 2, 4, 4]
     i = 0
     for index in range(len(bin_files)):
         bin_files[index].append('--threads')
@@ -160,23 +160,11 @@ def get_binary():
         else:
             bin_files[index].append('1')
 
-    # bin_files = [
-    #     ['bin_leveldb_sequential_5G', '--threads', '1'],
-    #     ['bin_leveldb_zipfian_1024M', '--threads', '1'],
-    #     ['bin_mysql_hotspot_512M', '--threads', '2'],
-    #     ['bin_mysql_hotspot_1024M', '--threads', '2'],
-    #     ['bin_mysql_zipfian_512M', '--threads', '2'],
-    #     ['bin_sqlite_sequential_5G', '--threads', '1'],
-    #     ['bin_sqlite_uniform_1024M', '--threads', '2'],
-    #     ['bin_sqlite2_sequential_5G', '--threads', '1'],
-    #     ['bin_tmdb_sequential_5G', '--threads', '1'],
-    #     ['bin_tmdb_uniform_512M', '--threads', '2'],
-    # ]
     random.seed(0)
     random.shuffle(bin_files)
 
     # 任务数固定为5，cache大小固定为1536
-    workload_num = 25
+    workload_num = 10
     cache_size = 10240
     target_workloads = bin_files[:workload_num]
     logging.info('----- Target workloads:')
@@ -269,13 +257,13 @@ def run(target_workloads):
     start_time = time.time()
     procs = []
     for wl in target_workloads:
-        tmp = [os.path.join(directory_path, wl[0]), '--cache', '--run', '5', wl[1], wl[2]]
+        tmp = [os.path.join(directory_path, wl[0]), '--cache', '--run', '5', '--maxquery', '10000', wl[1], wl[2]]
         tmp.extend(['--loginfo', '0', '--profile', 'log/'])
         tmp[-1] = tmp[-1] + wl[0]
         procs.append(operation(tmp))
     pids = get_pid(target_workloads)
-    set_cpu_cores(pids, generate_even_list(len(target_workloads), 30))
-    set_bandwidth(pids, generate_even_list(len(target_workloads), 100))
+    set_cpu_cores(pids, generate_even_list(len(target_workloads), 12))
+    set_bandwidth(pids, generate_even_list(len(target_workloads), 50))
 
     for index, p in enumerate(procs):
         logging.info('Waiting {}'.format(target_workloads[index][0]))
@@ -289,14 +277,15 @@ def warmup_and_run(target_workloads):
     start_time = time.time()
     procs = []
     for wl in target_workloads:
-        tmp = [os.path.join(directory_path, wl[0]), '--cache', '--warmup', '--run', '5', wl[1], wl[2]]
-        tmp.extend(['--loginfo', '0', '--profile', 'log/'])
+        tmp = [os.path.join(directory_path, wl[0]), '--cache', '--run', '1', '--maxquery', '10000', wl[1], wl[2]]
+        # tmp.extend(['--loginfo', '0', '--profile', 'log/'])
+        tmp.extend(['--profile', 'log/'])
         tmp[-1] = tmp[-1] + wl[0]
         procs.append(operation(tmp))
     pids = get_pid(target_workloads)
     #TODO:将所有的进程绑定在相同的cpu核心和同一个带宽组里
     set_cpu_cores(pids, 12)
-    set_bandwidth(pids, 40)
+    set_bandwidth(pids, 50)
     for index, p in enumerate(procs):
         logging.info('Waiting {}'.format(target_workloads[index][0]))
         stdout, stderr = p.communicate()
@@ -311,19 +300,13 @@ if __name__ == '__main__':
     # prepare阶段
     # prepare_phase(target_workloads)
     # 启动cache server, pool_size 256, size_conv = 64
-    server_process = cache_server(cache_size, 384, 0, 64)
-
-    warmup(target_workloads)
+    server_process = cache_server(cache_size, 1024, 0, 64)
     run(target_workloads)
-
-
     close_server()
     server_process.communicate()
 
     # 针对baseline的测试
-    # server_process = cache_server(cache_size, 256, 1, 64)
+    # server_process = cache_server(cache_size, 768, 1, 64)
     # warmup_and_run(target_workloads)
     # close_server()
     # server_process.communicate()
-
-    

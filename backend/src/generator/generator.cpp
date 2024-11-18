@@ -2,10 +2,9 @@
 
 using namespace std;
 
-Generator::Generator(Distribution distibution, vector<double>& params, int workingset_size, int queries){
+Generator::Generator(Distribution distibution, int workingset_size, vector<double> params){
     d_type = distibution;
     max_records = workingset_size;
-    max_queries = queries;
 
     //for hootspot
     std::vector<double> intervals = {0};
@@ -38,24 +37,54 @@ Generator::Generator(Distribution distibution, vector<double>& params, int worki
 }
 
 size_t Generator::get_num(std::default_random_engine &generator){
+    size_t key = 0;
     switch (d_type)
     {
         case D_ZIPFIAN:
-            return zipfian_distrib(generator) % max_records;
+            key = zipfian_distrib(generator) % max_records;
+            break;
         case D_UNIFORM:
-            return uniform_distrib(generator) % max_records;
+            key = uniform_distrib(generator) % max_records;
+            break;
         case D_HOTSPOT:
-            return int(hotspot_distrib(generator)) % max_records;
+            key = int(hotspot_distrib(generator)) % max_records;
+            break;
         case D_EXPONENTIAL:
-            return int(exponential_distrib(generator)) % max_records;
+            key =  int(exponential_distrib(generator)) % max_records;
+            break;
         case D_SEQUENTIAL:
-            size_t key = sequential_counter++;
-            if(sequential_counter >= max_records)
+            key = sequential_counter++;
+            if(sequential_counter >= (int)max_records)
                 sequential_counter = 0; 
-            return key;
         default:
-            return 0;
+            break;
     }
+    return key;
 }
 
-
+void Generator::print(){
+    string distribution_name = "";
+    switch (d_type)
+    {
+        case D_ZIPFIAN:
+            distribution_name = "Zipfian";
+            break;
+        case D_UNIFORM:
+            distribution_name = "Uniform";
+            break;
+        case D_HOTSPOT:
+            distribution_name = "Hotspot";
+            break;
+        case D_EXPONENTIAL:
+            distribution_name = "Exponential";
+            break;
+        case D_SEQUENTIAL:
+            distribution_name = "Sequential";
+        default:
+            break;
+    }
+    cout << "----- Generator Info -----\n";
+    cout << "Distribution: " << distribution_name << endl;
+    cout << "Max records: " << max_records << endl;
+    cout << "----- Generator End -----\n";
+}

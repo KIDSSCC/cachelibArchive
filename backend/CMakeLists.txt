@@ -25,6 +25,7 @@ pkg_search_module(LIBMONGOCXX REQUIRED libmongocxx)
 file(GLOB CONFIG_FILE "${CMAKE_CURRENT_LIST_DIR}/src/config/*.h")
 # Set include directories using target_include_directories
 file(GLOB_RECURSE SOURCES ${CMAKE_CURRENT_LIST_DIR}/src/*.cpp)
+file(GLOB_RECURSE EXCLUDED_SOURCES ${CMAKE_CURRENT_LIST_DIR}/src/config_backup/*.h)
 
 # 根据配置文件列表依次进行编译
 foreach(CONFIG_ ${CONFIG_FILE})

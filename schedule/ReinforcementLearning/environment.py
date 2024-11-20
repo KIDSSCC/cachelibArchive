@@ -37,11 +37,6 @@ class Env:
         # TODO：根据index
         pass
 
-    def gen_dataset():
-        '''
-        需要训练集和测试集
-        '''
-        pass
     
     def predict_line(self, first, second):
         '''

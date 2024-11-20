@@ -19,6 +19,8 @@ def find_target(point1, point2, y_value):
     x_value = (y_value - c) / m
     # return math.ceil(x_value)
     return x_value
+
+
 def cache_estimate(allocation, hitrate, total_resources):
     # TODO: allocation和hitrate是长度为2的list，对应两次缓存划分以及对应的缓存命中率
     # 据此对工作集大小进行估算，并通过动态规划进行求解，定死缓存划分的方案
@@ -139,6 +141,7 @@ class OnlineProfile(ScheduleFrame):
 
     def update(self, reward, chosen_arm):
         """
+        目前是只扰动了Cache
         TODO:
             chosen_arm 调整为长度为3的list, 每个元素为一个dict, 对应该资源在每个任务上的分配
             reward 调整为一个长度为3的list, [0]为延迟对应的reward值, [1]为dict, 每个任务对应的cpu利用率，[2]为dict，每个任务对应的cache命中率
@@ -219,6 +222,7 @@ class OnlineProfile(ScheduleFrame):
 
 
     def save_to_pickle(self, filename):
+        '''将当前模型保存'''
         with open(filename, 'wb') as f:
             pickle.dump(self, f)
 

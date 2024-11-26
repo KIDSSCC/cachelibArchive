@@ -27,8 +27,8 @@ rm -rf *.log
 rm -rf log/*
 rm -rf /dev/shm/*
 rm -rf /SSDPath/nvmcache/*
-mkdir -p /home/md/SHMCachelib/Build
-cd /home/md/SHMCachelib/Build
+mkdir -p Build
+cd Build
 cmake $CMAKE_PARAMS ..
 make -j 16
 

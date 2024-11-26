@@ -59,7 +59,7 @@ def clear_groups():
         subprocess.run(delete_command, input=passwd, shell=True, text=True, capture_output=True)
 
 def set_cpu_cores(pids, cores):
-    core_index = 0
+    core_index = 28
     if isinstance(cores, list):
         for i in range(len(pids)):
             cpu_to_set = map(str, range(core_index, core_index + cores[i]))
@@ -277,7 +277,7 @@ def warmup_and_run(target_workloads):
     start_time = time.time()
     procs = []
     for wl in target_workloads:
-        tmp = [os.path.join(directory_path, wl[0]), '--cache', '--run', '1', '--maxquery', '10000', wl[1], wl[2]]
+        tmp = [os.path.join(directory_path, wl[0]), '--cache', '--run', '1', '--maxquery', '5000', wl[1], wl[2]]
         tmp.extend(['--loginfo', '0', '--profile', 'log/'])
         tmp[-1] = tmp[-1] + wl[0]
         procs.append(operation(tmp))

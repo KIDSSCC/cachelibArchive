@@ -1,4 +1,3 @@
-# from jhn
 import copy
 import math
 import torch
@@ -58,8 +57,6 @@ class Agent:
     def __init__(self):
         # self.device = 'cpu'
 
-        # self.gamma = 1.0  # 折扣率
-
         self.lr = 2e-4
 
         self.model = PolicyNetwork()
@@ -67,14 +64,9 @@ class Agent:
         self.Mseloss = nn.MSELoss()
 
     def get_action(self, state):
+        sampled_state = sampled_state.view(-1, 128)
         scores = self.model.actor(state).squeeze()
         action_probs = F.softmax(scores, dim=-1)
-
-        # dist_action = Categorical(action_probs)
-
-        # action_index = dist_action.sample()
-        # log_prob = dist_action.log_prob(action_index)
-
         return action_probs
 
     def learn(self, reward, action_prob):
@@ -97,8 +89,9 @@ if __name__ == '__main__':
 
     from environment import Env
     from torch.utils.data import DataLoader, TensorDataset
-
-    env = Env()
+    point1=[[16, 16, 16, 16, 16, 16, 16, 16, 16, 16],[0.0001 , 0.8601,  0.2398,  0.4711,  0.29215,   0.26915,  0.7311,  0,        0.5329,  0.2957]]
+    point2=[[20, 20, 10, 21, 12, 14, 17, 9,  17, 20],[0,       0.9324,  0.0447,  0.7632,  0.297075,  0.1392,   0.7185,  0,        0.7132,  0.3795]]
+    env = Env(point1, point2)
     state, index = env.train_dataset
 
     agent = Agent()
@@ -110,9 +103,9 @@ if __name__ == '__main__':
     # 遍历dataloader获取每次的采样
     for batch_data in dataloader:
         sampled_state, sampled_index = batch_data
-
+        print(f"Sampled state shape: {sampled_state.shape}")            # [200, 10, 3] batch_size, num_tasks, 曲线
+        print(sampled_state)
         action_probs = agent.get_action(sampled_state)
         _, reward, _ = env.step(action_probs, sampled_index)
         print(reward)
-        # agent.learn(state,reward=torch.tensor(10.),action_prob=action_probs)
 

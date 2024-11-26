@@ -5,6 +5,180 @@ import sys
 from itertools import zip_longest
 from ScheduleFrame import *
 from typing import List
+import time
+import matplotlib.pyplot as plt
+
+def sigmoid(x, a, b, c):
+        """定义 Sigmoid 函数"""
+        return a / (1 + np.exp(-b * (x - c)))
+
+def do_simulation(first, second):
+    '''根据两个点做sigmoid模拟'''
+    assert len(first[0])==len(second[0]), "任务数量不一致"    
+    num_tasks = len(first[0])  # 任务数量
+    predictions = []
+    # 函数模拟
+    for i in range(num_tasks):
+        # 分别获取两个点的 cache 和 hitrate 值
+        cache1, hitrate1 = first[0][i], first[1][i]
+        cache2, hitrate2 = second[0][i], second[1][i]
+        # 确保cache值不同，以避免除零
+        assert cache1 != cache2, f"任务 {i} 的两个点的 cache 值不能相等"
+
+        # 1.D_SEQUENTIAL分布，采样到的点hit_rate都为0
+        if hitrate2 == 0 :
+            predictions.append([0,0,0])
+            continue
+        # 2.采样点不精确，增大cache后hit_rate反而降低，做修改
+        if (cache2 > cache1 and hitrate2 < hitrate1) or (cache2 < cache1 and hitrate2 > hitrate1):
+            temp = cache1
+            cache1 = cache2
+            cache2 = temp
+            # continue
+        # 3.使用sigmoid函数进行模拟
+        a = 1       # 命中率最大值为1
+        c = (hitrate1 - hitrate2) / (cache1 - cache2)   # 中值
+        # numerator = (a / hitrate1 - 1)
+        # denominator = (a / hitrate2 - 1)
+        # print(f"i: {i}, numerator: {numerator}, denominator: {denominator}")
+        # assert numerator > 0 and denominator > 0, "对数输入非法"
+        b = (1 / (cache2 - cache1)) * np.log((a / hitrate1 - 1) / (a / hitrate2 - 1))  # 根据公式计算 b
+        predictions.append([a,b,c])
+    x = np.linspace(0, 80, 100)
+    for i in range(len(predictions)):
+        line = sigmoid(x, predictions[i][0], predictions[i][1], predictions[i][2])
+        plt.plot(x, line, label='line' + str(i + 1))
+    plt.legend()
+    plt.title("Function Mapping")
+    plt.xlabel("Original Values")
+    plt.ylabel("Mapped Values (0-1)")
+    plt.savefig('figures/activate_fun.png')
+    return predictions
+
+def get_neighbor(NUM_TASK, TOTAL_CACHE, solution,lb,ub,change_precision=0.5):
+    ''' 随机选择一个任务修改其缓存分配，生成一个新的候选解
+    NUM_TASK        当前任务数量
+    TOTAL_CACHE:    总缓存大小
+    :param solution:    当前解
+    :param lb: 下限
+    :param ub: 上限
+    :param change_precision: 调整的精确度
+    :return:
+    '''
+    neighbor = solution.copy()
+    # 随机选择一个任务
+    i = np.random.randint(len(solution))
+    # 要改变的大小
+    change = np.random.uniform(-change_precision, change_precision)  # 在-change_precision到+change_precision之间调整
+    # 修改，且满足上下限
+    neighbor[i] = max(lb, min(ub, neighbor[i] + change))
+
+    # 调整其他任务的缓存大小，以保持总和为TOTAL_CACHE
+    remaining_cache = TOTAL_CACHE - np.sum(neighbor)
+    remaining_tasks = NUM_TASK - 1
+    # 将变化的部分分摊到其为
+    # allo_remaining_cache = remaining_cache / remaining_tasks
+
+    for j in range(len(solution)):
+        if j != i:
+            # neighbor[j] += allo_remaining_cache
+            # current_value = neighbor[j]
+            # 计算新的值，并确保在lb和ub之间
+            max_possible_increase = ub - neighbor[j]
+            max_possible_decrease = neighbor[j] - lb
+            # 分配剩余缓存
+            if remaining_cache > 0:
+                if (remaining_cache )>max_possible_increase:
+                    increase = max_possible_increase
+                else:
+                    increase = remaining_cache
+                # increase = min(max_possible_increase, remaining_cache / remaining_tasks)
+                neighbor[j] += increase
+                # remaining_cache -= increase
+                remaining_cache = TOTAL_CACHE - np.sum(neighbor)
+            else:
+                if (abs(remaining_cache) )>max_possible_decrease:
+                    decrease = max_possible_decrease
+                else:
+                    decrease = abs(remaining_cache)
+                # decrease = min(max_possible_decrease, abs(remaining_cache) / remaining_tasks)
+                neighbor[j] -= decrease
+                # remaining_cache += decrease
+                remaining_cache = TOTAL_CACHE - np.sum(neighbor)
+    return neighbor
+
+def get_curr_avg_hitrate( cache_allocation, workload_features):
+    '''根据当前缓存分配和工作负载对应的特征曲线计算当前的命中率'''
+    assert len(cache_allocation) == len(workload_features)      # 确保两个向量长度一致
+    total_hitrate = 0.0
+    for i in range(len(cache_allocation)):
+        total_hitrate += sigmoid(cache_allocation[i], workload_features[i][0], workload_features[i][1], workload_features[i][0])
+    return  total_hitrate / len(cache_allocation)
+
+def simulated_annealing2(NUM_TASK, TOTAL_CACHE, func, x0, features, T_max, T_min, L, max_stay_counter, cooling_rate, precision, lb, ub, change_precision):
+    '''模拟退火算法
+    从最高温降到最低温（保持不变），到达最低温时如果连续max_stay_counter次迭代中最优解没有改变则退出算法。
+    :param func: 目标函数
+    :param x0: 初始解向量
+    :param features: 特征向量向量，每个元素是一个向量，对应一个任务的命中率曲线
+    :param T_max: 初始温度
+    :param T_min: 最低温度
+    :param L: 每个温度下的迭代次数
+    :param max_stay_counter: 在达到最低温度后，如果连续max_stay_counter次迭代中最优解没有改变，则停止算法
+    :param cooling_rate: 温度变化率
+    :param precision: 在达到最低温度后，统计stay_counter的精度
+    :param lb: 解向量的下界
+    :param ub: 解向量的上界
+    :param change_precision: 邻域生成算子的调整精度
+    :return:
+    '''
+    current_solution = x0  # 当前解
+    current_hitrate = func(current_solution, features)  # 当前解的命中率
+    best_solution = current_solution  # 最优解
+    best_hitrate = current_hitrate  # 最优解的综合命中率
+
+    temperature = T_max  # 初始温度
+    flag_reach_min_temp =False
+    stay_counter = 0  # 记录连续迭代中最优解未改变的次数
+
+    while(True):
+        for i in range(L):
+            new_solution = get_neighbor(NUM_TASK, TOTAL_CACHE, current_solution,lb,ub,change_precision)  # 生成邻居解
+            new_hitrate = func(new_solution, features)  # 邻居解的延迟
+
+            delta_hitrate = new_hitrate - current_hitrate  # 延迟变化量
+
+            # 判断是否接受邻居解
+            if delta_hitrate > 0 :
+                current_solution = new_solution
+                current_hitrate = new_hitrate
+                best_solution = current_solution
+                best_hitrate = current_hitrate
+                # 到达最低温，新解有一定的下降，若下降精度小于precision
+                if flag_reach_min_temp :
+                    if abs(delta_hitrate) < precision:
+                        stay_counter += 1
+                    else:
+                        stay_counter = 0
+                continue
+            elif np.exp(delta_hitrate / temperature) > np.random.rand() :
+                current_solution = new_solution
+                current_hitrate = new_hitrate
+                if flag_reach_min_temp:
+                    stay_counter += 1
+                continue
+            if flag_reach_min_temp:
+                stay_counter += 1
+        if temperature > T_min:
+            temperature = temperature * cooling_rate  # 降低温度
+        else:
+            flag_reach_min_temp = True
+
+        # 检查是否达到最低温度和连续迭代中最优解未改变的次数
+        if flag_reach_min_temp and stay_counter >= max_stay_counter:
+            break
+    # print(iteration, temperature)
+    return best_solution, best_hitrate
 
 def find_target(point1, point2, y_value):
     x1, y1 = point1
@@ -19,7 +193,6 @@ def find_target(point1, point2, y_value):
     x_value = (y_value - c) / m
     # return math.ceil(x_value)
     return x_value
-
 
 def cache_estimate(allocation, hitrate, total_resources):
     # TODO: allocation和hitrate是长度为2的list，对应两次缓存划分以及对应的缓存命中率
@@ -233,7 +406,22 @@ class OnlineProfile(ScheduleFrame):
 
 
 if __name__ == '__main__':
-    mylist = [1, 2, 3, 4, 5, 6]
-    mylist2 = [1, 2, 3, 4, 5]
-    print(mylist2[mylist.index(max(mylist))])
-    pass
+    point1=[[16, 16, 16, 16, 16, 16, 16, 16, 16, 16],[0.0001 , 0.8601,  0.2398,  0.4711,  0.29215,   0.26915,  0.7311,  0,        0.5329,  0.2957]]
+    point2=[[20, 20, 10, 21, 12, 14, 17, 9,  17, 20],[0,       0.9324,  0.0447,  0.7632,  0.297075,  0.1392,   0.7185,  0,        0.7132,  0.3795]]
+    workload_features = do_simulation(point1, point2)
+    
+    curr_hitrate = get_curr_avg_hitrate(point2[0], workload_features)
+    task_num = len(point2[0])
+    total_cache = sum(point1[0])
+    print('当前命中率 : ', curr_hitrate, ' 任务数目 : ', task_num, ' 总cache资源量 : ', total_cache)
+    s = time.process_time()
+    best_solution, best_hitrate = simulated_annealing2(task_num, total_cache, get_curr_avg_hitrate, 
+                                                       x0=point1[0],features=workload_features,
+                                                       T_max=100, T_min=1e-3, L=150, max_stay_counter=200, precision=0.5,
+                                                        cooling_rate=0.95,lb=2,ub=total_cache,change_precision=10
+                                                        )
+    print("模拟退火算法耗时: ",time.process_time()-s)
+    print("最佳缓存分配：", best_solution, "最佳命中率：", best_hitrate, "命中提升幅度：", (best_hitrate - curr_hitrate) / curr_hitrate)
+    print("***********************")
+    # point3=[[20, 20, 10, 21, 12, 14, 17, 9,  17, 20],[0.385,   0,       0.8063,  0.0508,  0.804575,  0.2685,   0,       0.63,     0,       0.724]]
+    # point4=[[18, 18, 12, 24, 16, 9,  18, 14, 16, 15],[0.3415,  0,       0.8841,  0.0003, 0.82305,   0.17145,  0,       0.6912,   0,       0.5854]]

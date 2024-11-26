@@ -114,6 +114,55 @@ def get_last_line(file_name):
         print(f"Error: {e}")
         return ''
 
+def get_last_valid_number_line(file_name):
+    """
+    Open file and read the last line. If the last line is not a number (int or float),
+    continue to check the previous line.
+
+    Args:
+        file_name (str): file name
+
+    Returns:
+        str: last valid line with a number, '' if the file not found or no valid lines exist
+    """
+    try:
+        with open(file_name, 'rb') as file:
+            file.seek(0, 2)  # 将指针移动到文件末尾
+            file_size = file.tell()  # 获取文件大小
+            if file_size == 0:
+                return ''  # 文件为空，返回空字符串
+
+            offset = -2
+            file.seek(offset, 2)
+
+            while file.tell() > 0:
+                char = file.read(1)
+                if char == b'\n':  # 找到换行符
+                    line = file.readline().decode().strip()  # 读取当前行
+                    if line:  # 非空行检查
+                        try:
+                            # 尝试将行内容解析为 int 或 float
+                            float(line)
+                            return line  # 是数字，返回该行
+                        except ValueError:
+                            pass  # 非数值类型，继续向前查找
+                offset -= 1
+                file.seek(offset, 2)  # 继续向前移动
+
+            # 如果文件只有一行或没有换行符，检查第一行
+            file.seek(0)
+            line = file.readline().decode().strip()
+            try:
+                float(line)  # 检查第一行是否为数值
+                return line
+            except ValueError:
+                return ''  # 文件中没有有效的数值行
+    except FileNotFoundError:
+        return ''
+    except OSError as e:
+        print(f"Error: {e}")
+        return ''
+
 
 def get_pool_stats():
     """
@@ -271,11 +320,11 @@ class ProtoSystemManagement(ConfigManagement):
             last_line = None
             while last_line is None or last_line == '':
                 if last_line is None:
-                    last_line = get_last_line(log)
+                    last_line = get_last_valid_number_line(log)
                 else:
-                    print("error waiting in performace {}".format(log))
+                    print("error waiting in performace {}\n".format(log))
                     time.sleep(10)
-                    last_line = get_last_line(log)
+                    last_line = get_last_valid_number_line(log)
             performance.append(last_line)
 
         # hitrate
@@ -285,11 +334,11 @@ class ProtoSystemManagement(ConfigManagement):
             last_line = None
             while last_line is None or last_line == '':
                 if last_line is None:
-                    last_line = get_last_line(log)
+                    last_line = get_last_valid_number_line(log)
                 else:
                     print("error waiting when hitrates {}".format(log))
                     time.sleep(10)
-                    last_line = get_last_line(log)
+                    last_line = get_last_valid_number_line(log)
             hitrates.append(last_line)    
 
 

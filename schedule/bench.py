@@ -215,7 +215,7 @@ def prepare_phase(target_workloads):
     logging.info('----- Prepare Done')
 
 def cache_server(cache_size, pool_size, default_pool, size_conv=None):
-    args = ['taskset', '-c', '56-111', './Build/Server']
+    args = ['taskset', '-c', '85-111', './Build/Server']
     if cache_size is not None:
         args.append('-c')
         args.append(str(cache_size))

@@ -147,8 +147,8 @@ int main(int argc, char* argv[]){
         std::ofstream outx(profile_file + "_subItem.log", std::ios::app);
         std::ofstream outy(profile_file + "_subItem2.log", std::ios::app);
         auto sub_start = std::chrono::system_clock::now();
-        outx << "sub start time is: " << std::chrono::duration_cast<std::chrono::seconds>(sub_start - specific_time_point).count() << std::endl;
-        outy << "sub start time is: " << std::chrono::duration_cast<std::chrono::seconds>(sub_start - specific_time_point).count() << std::endl;
+        // outx << "sub start time is: " << std::chrono::duration_cast<std::chrono::seconds>(sub_start - specific_time_point).count() << std::endl;
+        // outy << "sub start time is: " << std::chrono::duration_cast<std::chrono::seconds>(sub_start - specific_time_point).count() << std::endl;
 
         std::vector<std::thread> threads;
         for (int i = 0; i < num_threads; i++) {
@@ -185,8 +185,8 @@ int main(int argc, char* argv[]){
         backend.clean_up();
 
         auto sub_end = std::chrono::system_clock::now();
-        outx << "sub end time is: " << std::chrono::duration_cast<std::chrono::seconds>(sub_end - specific_time_point).count() << std::endl;
-        outy << "sub end time is: " << std::chrono::duration_cast<std::chrono::seconds>(sub_end - specific_time_point).count() << std::endl;
+        // outx << "sub end time is: " << std::chrono::duration_cast<std::chrono::seconds>(sub_end - specific_time_point).count() << std::endl;
+        // outy << "sub end time is: " << std::chrono::duration_cast<std::chrono::seconds>(sub_end - specific_time_point).count() << std::endl;
 
         unsigned int average_percentile = average(total_latencies);
         unsigned int total_percentile_99 = percentile(total_latencies, 0.99);
@@ -201,8 +201,8 @@ int main(int argc, char* argv[]){
         // OUTPUT << "Total Used Time: " << total_usedtime << " ms" << std::endl;
 
         auto sub_sub_end = std::chrono::system_clock::now();
-        outx << "sub sub end time is: " << std::chrono::duration_cast<std::chrono::seconds>(sub_sub_end - specific_time_point).count() << std::endl;
-        outy << "sub sub end time is: " << std::chrono::duration_cast<std::chrono::seconds>(sub_sub_end - specific_time_point).count() << std::endl;
+        // outx << "sub sub end time is: " << std::chrono::duration_cast<std::chrono::seconds>(sub_sub_end - specific_time_point).count() << std::endl;
+        // outy << "sub sub end time is: " << std::chrono::duration_cast<std::chrono::seconds>(sub_sub_end - specific_time_point).count() << std::endl;
 
 
         if (!profile_file.empty()) {

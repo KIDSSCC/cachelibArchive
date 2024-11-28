@@ -1,10 +1,11 @@
 from util import *
 from datetime import datetime
 from predication_model import *
+from agent import *
 import threading
 
-WARMTIME = 200
-RUNTIME = 200           # 注意和backend/src/main.cpp保持一致
+WARMTIME = 5
+RUNTIME = 5           # 注意和backend/src/main.cpp保持一致
 
 def for_RL_learning():
     print('---------warm up-----------')
@@ -27,17 +28,30 @@ def for_RL_learning():
         performance = curr_config.performance                          # 获取当前性能指标
         print('performance: ', performance)
         context_info = curr_config.context
+        # [{'leveldb_1': 16, 'leveldb_2': 16, 'mongodb_1': 16, 'mongodb_2': 16, 'mysql_1': 16, 'mysql_2': 16,   cache
+        #  'sqlite_1': 16, 'sqlite_2': 16, 'tmdb_1': 16, 'tmdb_2': 16}, 
+        #  {'leveldb_1': 2, 'leveldb_2': 1,                             cpu
+        #  'mongodb_1': 1, 'mongodb_2': 2, 'mysql_1': 1, 'mysql_2': 1, 'sqlite_1': 1, 'sqlite_2': 1,
+        #  'tmdb_1': 1, 'tmdb_2': 1}, 
+        #  {'leveldb_1': 5, 'leveldb_2': 5,                             bandwidth
+        #  'mongodb_1': 5, 'mongodb_2': 5, 'mysql_1': 5, 'mysql_2': 5, 'sqlite_1': 5,
+        #  'sqlite_2': 5, 'tmdb_1': 5, 'tmdb_2': 5}]
         chosen_arm = [dict(zip(all_app, i)) for i in curr_config.resource_allocation]   # 获取当前分配资源信息
+        # first_cache_allocation = [float(value) for value in chosen_arm[0].values()]     # cache分配信息
         utilization_dict = dict(zip(all_app, curr_config.cpu_utilization))              # 获取当前cpu使用率
         print('utilization: ', utilization_dict)
         hitrate_dict = dict(zip(all_app, curr_config.hitrate))                          # 获取当前命中率
         print('hitrate: ', hitrate_dict)
-        hitrates = [float(value) for value in hitrate_dict.values()]                    # 确保是数值类型
+        first_hitrates = [float(value) for value in hitrate_dict.values()]                    # 确保是数值类型
         first_point = zip(curr_config.resource_allocation, hitrates)                    # 第一个点的信息
         aver_hit = sum(hitrates) / len(hitrates)
         th_reward, aver_latency= online_profiling.get_now_reward(performance, context_info) # 记录一下采集到的第一个点的相关信息
         current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")                     # write to log
-        log_info = '{} get first allocation: {} ,\n avg_hitrate is {}, avg_latency is {}\n'.format(current_time, str(chosen_arm), aver_hit, aver_latency)
+        log_info = '{} get first allocation: {} ,\nhitrates is {},\navg_hitrate is {}, avg_latency is {}\n'.format(current_time,
+                                                                                                    str(chosen_arm),
+                                                                                                    first_hitrates,
+                                                                                                    aver_hit,
+                                                                                                    aver_latency)
         file_.write(log_info)
         # 2.进行随机扰动，生成第二个采样点
         online_profiling.update([th_reward, utilization_dict, hitrate_dict], chosen_arm)    # 会进行一个扰动，生成一个新的分配
@@ -57,14 +71,29 @@ def for_RL_learning():
         aver_hit = sum(hitrates) / len(hitrates)
         th_reward, aver_latency= online_profiling.get_now_reward(performance, context_info) # 记录一下采集到的第二个点的相关信息
         current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")                     # write to log
-        log_info = '{} get second allocation: {} ,\n avg_hitrate is {}, avg_latency is {}\n'.format(current_time, str(chosen_arm), aver_hit, aver_latency)
+        log_info = '{} get second allocation: {} ,\nhitrates is {},\n avg_hitrate is {}, avg_latency is {}\n'.format(current_time,
+                                                                                                    str(chosen_arm), 
+                                                                                                    hitrates,
+                                                                                                    aver_hit,
+                                                                                                    aver_latency)
         file_.write(log_info)
-        # 3.进行模拟退火，生成最终方案
+        # 3. agent决策
+        model_path = './train_dir/num_task_10_20241128_120715/model_T10_I295.pt'
+        state_dict = torch.load(model_path, weights_only=True)
+        agent = Agent()
+        agent.model.load_state_dict(state_dict)
+        # 3.1 根据采样的两个点进行曲线模拟
+        state,features = do_simulation(first_point, second_point)
+        # 3.2 agent决策
+        action_probs = agent.get_action(state)
+        print('agent choose action_probs: ', action_probs)
+        # 4. 进行模拟退火，生成最终方案
         best_cache_solution, best_hitrate = simulated_annealing2( len(all_app), num_resources[0],
                                                             get_curr_avg_hitrate, 
-                                                            x0=point1[0],features=workload_features,
+                                                            x0=action_probs * num_resources[0],
+                                                            features=features,
                                                             T_max=100, T_min=1e-3, L=150, max_stay_counter=200, precision=0.5,
-                                                            cooling_rate=0.95,lb=2,ub=total_cache,change_precision=10
+                                                            cooling_rate=0.95,lb=2,ub=sum(first_point[0]),change_precision=10
                                                           )
         temp_time = time.time()
         log_info = 'simulated_annealing2 cal best cache solution: {},\n best hitrate: {}, use time: {}\n'.format(best_cache_solution,

@@ -64,7 +64,6 @@ class Agent:
         self.Mseloss = nn.MSELoss()
 
     def get_action(self, state):
-        sampled_state = sampled_state.view(-1, 128)
         scores = self.model.actor(state).squeeze()
         action_probs = F.softmax(scores, dim=-1)
         return action_probs

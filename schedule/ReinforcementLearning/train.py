@@ -7,7 +7,7 @@ import time
 import numpy as np
 from collections import deque
 
-from environment import  Env
+from environment import  *
 from agent import Agent
 from torch.utils.data import DataLoader, TensorDataset
 
@@ -42,25 +42,42 @@ class TrainManager:
 
     def train(self, first, second, num_tasks):
         '''传入模拟点和任务数量'''
-        max_epoch =  30
-        maxlen_best_model = 1  # Save the best model
+        max_epoch =  15             # 训练轮数 10就够了，之后就开始下降
+        maxlen_best_model = 1       # Save the best model
         makespan_best =float('-inf')
         last_best_model_path = None
         count_iters = 0
         list_mean_hitrate = []      #记录训练过程中的平均命中率
         agent = Agent()
-        env = Env(first, second, num_tasks=num_tasks)     
+        # 训练批次为200，验证集批次为1
+        env = Env(first, second, num_tasks=num_tasks, 
+                  train_batch_size = 1024 * 20, validate_batch_size = 1,
+                  simulate_num = 4)     
         str_time = time.strftime("%Y%m%d_%H%M%S", time.localtime(time.time()))
         save_dir = f'./train_dir/num_task_{num_tasks}_{str_time}'
         os.makedirs(save_dir)
+        # 打印所选择的验证集
+        import matplotlib.pyplot as plt
+        validate_dataset = env.validate_dataset
+        x = torch.linspace(0, 30, 100)
+        for i in range(len(env.validate_dataset[1][0])):
+            # print(f'line {i + 1} a = {env.total_list_hit_rate[env.validate_dataset[1][0][i]][0]} b = {env.total_list_hit_rate[env.validate_dataset[1][0][i]][1]}')
+            line = exponential(x, env.total_list_hit_rate[env.validate_dataset[1][0][i]][0], env.total_list_hit_rate[env.validate_dataset[1][0][i]][1])
+            plt.plot(x, line, label='line' + str(i + 1), alpha=0.7)
+        plt.legend()
+        plt.axvline(x=16, color='red', linestyle='--', linewidth=2, label='x = 16')
+        plt.title("Validate Data")
+        plt.xlabel("Cache Allocation")
+        plt.ylabel("Hit Rate")
+        file_path = os.path.join(save_dir, 'validate_data_lines.png')
+        plt.savefig(file_path)
         start_train_time = time.time()
         for i in range(1,max_epoch + 1):
             print(f'epoch: {i}')
             state, index = env.train_dataset
-            if i % 100 ==0:         # 每100个epoch更新一次数据集
+            if i % 1000 ==0:         # 每100个epoch更新一次数据集
                 env.update_train_dataset(num_tasks=num_tasks)
                 state, index = env.train_dataset
-            
             combined_dataset = TensorDataset(state, index)
             # 使用DataLoader从合并后的数据集中采样
             dataloader = DataLoader(combined_dataset, batch_size=1024, shuffle=True)
@@ -76,13 +93,14 @@ class TrainManager:
                 # 验证集验证
                 val_state, val_index = env.validate_dataset
                 action_probs = agent.get_action(val_state)
-                val_reward = env.complete_delay(action_probs, val_index)
+                # print('action_probs : ',action_probs * TOTAL_CACHE_SIZE)
+                val_reward = env.compete_hitrate(action_probs * TOTAL_CACHE_SIZE, val_index[0], True)
+                print(f'epoch {count_iters} get val_reward : ', val_reward)
                 mean_hitrate = torch.mean(val_reward).item()
                 list_mean_hitrate .append(mean_hitrate)
-                print('validate mean hitrate : ',mean_hitrate)
+                print(f'epoch {count_iters} get validate mean hitrate : ',mean_hitrate)
 
                 if mean_hitrate > makespan_best:
-
                     makespan_best = mean_hitrate
                     save_new_model_path = '{0}/model_T{1}_I{2}.pt'.format(save_dir,num_tasks, count_iters)
                     if last_best_model_path != None:
@@ -95,15 +113,15 @@ class TrainManager:
         minutes = (seconds % 3600) // 60
         remaining_seconds = int(seconds % 60)
         print(f"total_train_time: H:{hours}-M:{minutes}-S:{remaining_seconds}")
-        print(list_mean_hitrate)
+        # print(list_mean_hitrate)
 
         with open('{0}/list.txt'.format(save_dir),'w') as f:
-
             f.write('valid_list_mean_hitrate' + str(list_mean_hitrate) + '\n\n')
 
         import matplotlib.pyplot as plt
 
         # plt.switch_backend('Agg')
+        plt.title(f'mean hitrate with task num {num_tasks}')
         plt.figure(figsize=(12, 6))
         x_data = list(range(1,len(list_mean_hitrate)+1))
         plt.plot( x_data, list_mean_hitrate, label='mean hitrate')
@@ -114,11 +132,12 @@ class TrainManager:
 
         plt.grid()  # 网格
         plt.tight_layout()  # 去白边
-        plt.savefig(save_dir+'/mean_hitrate.png', dpi=200)
+        plt.savefig(save_dir+f'/mean_hitrate with task num {num_tasks}.png', dpi=200)
         plt.show()
 
 if __name__ == '__main__':
     point1=[[16, 16, 16, 16, 16, 16, 16, 16, 16, 16],[0.0001 , 0.8601,  0.2398,  0.4711,  0.29215,   0.26915,  0.7311,  0,        0.5329,  0.2957]]
     point2=[[20, 20, 10, 21, 12, 14, 17, 9,  17, 20],[0,       0.9324,  0.0447,  0.7632,  0.297075,  0.1392,   0.7185,  0,        0.7132,  0.3795]]
     t = TrainManager()
-    t.train(point1, point2, 10)
+    t.train(point1, point2, num_tasks = 10)
+    # 20个任务，80个单位资源

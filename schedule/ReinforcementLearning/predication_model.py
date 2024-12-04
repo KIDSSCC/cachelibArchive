@@ -15,15 +15,43 @@ from agent import *
 #         """定义 Sigmoid 函数"""
 #         return a / (1 + np.exp(-b * (x - c)))
 
-def exponential(x, a , b):
-    """命中率为指数函数时"""
-    if type(a) != torch.Tensor:
-        x = torch.tensor(x, dtype=torch.float32)  # 如果 x 不是 Tensor 类型，则转换为 Tensor
-        a = torch.tensor(a, dtype=torch.float32)  # 如果 a 不是 Tensor 类型，则转换为 Tensor
-        b = torch.tensor(b, dtype=torch.float32)  # 如果 b 不是 Tensor 类型，则转换为 Tensor
-    res = a * (1 - torch.exp(-b * (x - 0)))
-    res = torch.minimum(res, torch.tensor(1))  # 将结果限制在最大值 1
-    return res
+# def exponential(x, a , b):
+#     """命中率为指数函数时"""
+#     if not isinstance(x, torch.Tensor): 
+#         x = torch.tensor(x, dtype=torch.float32)  # 如果 x 不是 Tensor 类型，则转换为 Tensor
+#     if not isinstance(a, torch.Tensor): 
+#         a = torch.tensor(a, dtype=torch.float32)  # 如果 a 不是 Tensor 类型，则转换为 Tensor
+#     if not isinstance(b, torch.Tensor): 
+#         b = torch.tensor(b, dtype=torch.float32)  # 如果 b 不是 Tensor 类型，则转换为 Tensor
+#     res = a * (1 - torch.exp(-b * (x - 0)))
+#     res = torch.minimum(res, torch.tensor(1))  # 将结果限制在最大值 1
+#     return res
+
+def Calculate_features(cache1, cache2, hitrate1, hitrate2):
+    # 1. hitrate1 == hitrate2 == 1
+    flag = 1    # 0 线性， 1，exponential
+    a = 1
+    b = 1
+    # 1. 两次采样命中率都是1
+    if hitrate1 == 1 and hitrate2 == 1:     
+        flag = 0
+        a = 1 / min(cache1, cache2)         # a为斜线斜率
+        return [a, b, flag]
+    # 2. 第二次采样的命中率低于0.05 且分配的资源量是比较多的，认为当前是sequence    -> 4可以改
+    if hitrate2 <= 0.05 and cache2 >= 4:                   
+        flag = 0
+        a = 0                               # a为斜线斜率
+        return [a, b, flag]
+    # 3. 其余都用exponential
+    # 采样点不精确，cache增大，结果反而缩小
+    if (cache2 > cache1 and hitrate2 < hitrate1) or (cache2 < cache1 and hitrate2 > hitrate1):
+        temp = cache1
+        cache1 = cache2
+        cache2 = temp
+    params_solution = fsolve(exp_growth, [1, 0.1], args=(cache1, hitrate1, cache2, hitrate2), maxfev=100)
+    a = params_solution[0]
+    b = params_solution[1]
+    return [a, b, flag]
 def predict_hitrate(cache_size, action_hitrate_index):
     """
     传入一组分配的 cache 大小和对应预测曲线的参数 abc，返回在所分配 cache 大小下的命中率。
@@ -31,8 +59,16 @@ def predict_hitrate(cache_size, action_hitrate_index):
     :param action_hitrate_index: 一条曲线
     :return: 计算得到的命中率，与 cache_size 的形状一致
     """
-    res = exponential(cache_size, action_hitrate_index[0],action_hitrate_index[1])
-    return res
+    cache_size = torch.tensor(cache_size, dtype=torch.float32)
+    if action_hitrate_index[2] == 0:          # hitrate1 = hitrate2 = 1.0，假设线性增长
+        res = action_hitrate_index[0] * cache_size
+        res = torch.tensor(res)
+        res = torch.minimum(res, torch.tensor(1))  # 将结果限制在最大值 1
+        return res
+    if action_hitrate_index[2] == 1:          # hitrate1 != hitrate2
+        res = action_hitrate_index[0] * (1 - torch.exp(-action_hitrate_index[1] * (cache_size - 0)))
+        res = torch.minimum(res, torch.tensor(1))  # 将结果限制在最大值 1
+        return res
 def exp_growth(params, x1, y1, x2, y2):
     '''
     params : 初始猜想解
@@ -43,10 +79,9 @@ def exp_growth(params, x1, y1, x2, y2):
     return [eq1, eq2]
 
 def do_simulation(first, second):
-    '''根据两个点做sigmoid模拟'''
+    '''根据两个点做曲线模拟'''
     assert len(first[0])==len(second[0]), "任务数量不一致"  
     TOTAL_CACHE_SIZE = sum(first[0])        # 总资源量
-    print("=============do simulation===============")
     num_tasks = len(first[0])  # 任务数量
     predictions = []
     # 函数模拟
@@ -56,20 +91,8 @@ def do_simulation(first, second):
         cache2, hitrate2 = second[0][i], second[1][i]
         # 确保cache值不同，以避免除零 -> predication_model.py
         assert cache1 != cache2, f"任务 {i} 的两个点的 cache 值不能相等"
-        # 1.D_SEQUENTIAL分布，采样到的点total_list_hit_rate都为0
-        if hitrate2 == 0 :
-            predictions.append([0,0])
-            continue
-        # 2.采样点不精确，增大cache后total_list_hit_rate反而降低，做修改
-        if (cache2 > cache1 and hitrate2 < hitrate1) or (cache2 < cache1 and hitrate2 > hitrate1):
-            temp = cache1
-            cache1 = cache2
-            cache2 = temp
-        # 3.其余使用指数函数进行模拟 -> 改为用指数函数模拟
-        params_solution = fsolve(exp_growth, [1, 0.1], args=(cache1, hitrate1, cache2, hitrate2), maxfev=100)
-        a = params_solution[0]
-        b = params_solution[1]
-        predictions.append([a,b])
+        res = Calculate_features(cache1, cache2, hitrate1, hitrate2)
+        predictions.append(res)
     random_samples = torch.linspace(0, 1, 128) * TOTAL_CACHE_SIZE
     x, _ = torch.sort(random_samples)
     y_list = []
@@ -146,7 +169,7 @@ def get_curr_avg_hitrate( cache_allocation, workload_features):
     assert len(cache_allocation) == len(workload_features)      # 确保两个向量长度一致
     total_hitrate = 0.0
     for i in range(len(cache_allocation)):
-        total_hitrate += exponential(cache_allocation[i], workload_features[i][0], workload_features[i][1])
+        total_hitrate += predict_hitrate(cache_size=cache_allocation[i], action_hitrate_index= workload_features[i])
     return  total_hitrate / len(cache_allocation)
 
 def simulated_annealing2(NUM_TASK, TOTAL_CACHE, func, x0, features, T_max, T_min, L, max_stay_counter, cooling_rate, precision, lb, ub, change_precision):
@@ -213,7 +236,15 @@ def simulated_annealing2(NUM_TASK, TOTAL_CACHE, func, x0, features, T_max, T_min
         if flag_reach_min_temp and stay_counter >= max_stay_counter:
             break
     # print(iteration, temperature)
-    return best_solution, best_hitrate
+    best_solution = best_solution.tolist()
+    # TODO : 返回的solution只能是int
+    truncated = [int(k) for k in best_solution]
+    differences = [x - t for x, t in zip(best_solution, truncated)]
+    total_difference = round(sum(best_solution) - sum(truncated))
+    indices = sorted(range(len(differences)), key=lambda i: -differences[i])
+    for i in range(total_difference):
+        truncated[indices[i]] += 1
+    return truncated, best_hitrate
 
 def find_target(point1, point2, y_value):
     x1, y1 = point1

@@ -40,7 +40,7 @@ class TrainManager:
         # torch.set_printoptions(precision=None, threshold=np.inf, edgeitems=None, linewidth=None, profile=None,
         #                        sci_mode=False)
 
-    def train(self, first, second, num_tasks):
+    def cahce_train(self, first, second, num_tasks, TOTAL_RESOURCE):
         '''传入模拟点和任务数量'''
         max_epoch =  15             # 训练轮数 10就够了，之后就开始下降
         maxlen_best_model = 1       # Save the best model
@@ -51,8 +51,8 @@ class TrainManager:
         agent = Agent()
         # 训练批次为200，验证集批次为1
         env = Env(first, second, num_tasks=num_tasks, 
-                  train_batch_size = 1024 * 20, validate_batch_size = 1,
-                  simulate_num = 4)     
+                  train_batch_size = 1024 * 20, validate_batch_size = 4,
+                  simulate_num = 4, TOTAL_CACHE_SIZE=TOTAL_RESOURCE)     
         str_time = time.strftime("%Y%m%d_%H%M%S", time.localtime(time.time()))
         save_dir = f'./train_dir/num_task_{num_tasks}_{str_time}'
         os.makedirs(save_dir)
@@ -60,17 +60,21 @@ class TrainManager:
         import matplotlib.pyplot as plt
         validate_dataset = env.validate_dataset
         x = torch.linspace(0, 30, 100)
-        for i in range(len(env.validate_dataset[1][0])):
-            # print(f'line {i + 1} a = {env.total_list_hit_rate[env.validate_dataset[1][0][i]][0]} b = {env.total_list_hit_rate[env.validate_dataset[1][0][i]][1]}')
-            line = exponential(x, env.total_list_hit_rate[env.validate_dataset[1][0][i]][0], env.total_list_hit_rate[env.validate_dataset[1][0][i]][1])
-            plt.plot(x, line, label='line' + str(i + 1), alpha=0.7)
-        plt.legend()
-        plt.axvline(x=16, color='red', linestyle='--', linewidth=2, label='x = 16')
-        plt.title("Validate Data")
-        plt.xlabel("Cache Allocation")
-        plt.ylabel("Hit Rate")
-        file_path = os.path.join(save_dir, 'validate_data_lines.png')
-        plt.savefig(file_path)
+        # print('len(validate_dataset[0])',len(validate_dataset[0]))
+        for validate_dataset_batch in range(len(validate_dataset[0])):
+            # print('len(env.validate_dataset[1][validate_dataset_batch])', len(env.validate_dataset[1][validate_dataset_batch]))
+            for i in range(len(env.validate_dataset[1][validate_dataset_batch])):
+                # print('env.total_list_hit_rate[env.validate_dataset[1][validate_dataset_batch][i]][0]',env.total_list_hit_rate[env.validate_dataset[1][validate_dataset_batch][i]][0])
+                line = env.predict_hitrate(x, env.total_list_hit_rate[env.validate_dataset[1][validate_dataset_batch][i]])
+                plt.plot(x, line, label='line' + str(i + 1), alpha=0.7)
+            plt.legend()
+            plt.axvline(x=16, color='red', linestyle='--', linewidth=2, label='x = 16')
+            plt.title("Validate Data")
+            plt.xlabel("Cache Allocation")
+            plt.ylabel("Hit Rate")
+            file_path = os.path.join(save_dir, f'validate_data_lines{validate_dataset_batch}.png')
+            plt.savefig(file_path)
+            plt.clf()
         start_train_time = time.time()
         for i in range(1,max_epoch + 1):
             print(f'epoch: {i}')
@@ -94,10 +98,18 @@ class TrainManager:
                 val_state, val_index = env.validate_dataset
                 action_probs = agent.get_action(val_state)
                 # print('action_probs : ',action_probs * TOTAL_CACHE_SIZE)
-                val_reward = env.compete_hitrate(action_probs * TOTAL_CACHE_SIZE, val_index[0], True)
+                val_reward = 0.0
+                # print('action_probs)',action_probs)
+                # print('val_index', val_index)
+                # print('len(action_probs)', len(action_probs))
+                for i in range(len(action_probs)):
+                    # print('val_index', val_index[i])
+                    # print('train action',action_probs * TOTAL_RESOURCE)
+                    val_reward += env.compete_hitrate(action_probs[i] * TOTAL_RESOURCE, val_index[i], True)
+                val_reward = val_reward / len(val_index)
                 print(f'epoch {count_iters} get val_reward : ', val_reward)
                 mean_hitrate = torch.mean(val_reward).item()
-                list_mean_hitrate .append(mean_hitrate)
+                list_mean_hitrate.append(mean_hitrate)
                 print(f'epoch {count_iters} get validate mean hitrate : ',mean_hitrate)
 
                 if mean_hitrate > makespan_best:
@@ -135,9 +147,14 @@ class TrainManager:
         plt.savefig(save_dir+f'/mean_hitrate with task num {num_tasks}.png', dpi=200)
         plt.show()
 
+    def cpu_train(self, first, second, num_tasks, TOTAL_RESOURCE):
+
+        pass
 if __name__ == '__main__':
-    point1=[[16, 16, 16, 16, 16, 16, 16, 16, 16, 16],[0.0001 , 0.8601,  0.2398,  0.4711,  0.29215,   0.26915,  0.7311,  0,        0.5329,  0.2957]]
-    point2=[[20, 20, 10, 21, 12, 14, 17, 9,  17, 20],[0,       0.9324,  0.0447,  0.7632,  0.297075,  0.1392,   0.7185,  0,        0.7132,  0.3795]]
+    point1=[[20, 20, 10, 21, 12, 14, 17, 9,  17, 20],
+            [0.385,   0,       0.8063,  0.0508,  0.804575,  0.2685,   0,       0.63,     0,       0.724]]
+    point2=[[18, 18, 12, 24, 16, 9,  18, 14, 16, 15],
+            [0.3415,  0,       0.8841,  0.0003, 0.82305,   0.17145,  0,       0.6912,   0,       0.5854]]
     t = TrainManager()
-    t.train(point1, point2, num_tasks = 10)
+    t.cahce_train(point1, point2, num_tasks = 10, TOTAL_RESOURCE = 160)
     # 20个任务，80个单位资源

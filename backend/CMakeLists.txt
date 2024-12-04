@@ -21,7 +21,7 @@ find_package(PkgConfig REQUIRED)
 find_package(SQLite3 REQUIRED)
 pkg_search_module(LIBMONGOCXX REQUIRED libmongocxx)
 
-# 检索配置文件列表
+# 检索配置文件列表 -> config改为config25就会从25个里抽x个
 file(GLOB CONFIG_FILE "${CMAKE_CURRENT_LIST_DIR}/src/config/*.h")
 # Set include directories using target_include_directories
 file(GLOB_RECURSE SOURCES ${CMAKE_CURRENT_LIST_DIR}/src/*.cpp)

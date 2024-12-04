@@ -55,7 +55,7 @@ map<string, uint64_t> getCacheStats()
 	}	
 	return res;
 }
-
+//TODO : server正确接收了吗
 void executeNewConfig(string config){
 	istringstream iss(config);
 	string line,size;
@@ -92,7 +92,7 @@ void sharedMemCtl(string appName, int no, CacheHitStatistics* chs)
 {
     int SHARED_MEMORY_SIZE = sizeof(shm_stru);
     string localAppName = appName;
-	XLOG(INFO) << "Register SHM: " << localAppName;
+	// XLOG(INFO) << "Register SHM: " << localAppName;
     // create new shared memory
     int shm_fd = shm_open(localAppName.c_str(), O_CREAT | O_RDWR, 0666);
     if (shm_fd == -1) 
@@ -135,9 +135,9 @@ void sharedMemCtl(string appName, int no, CacheHitStatistics* chs)
 		while(sem_trywait(semaphore)!=0){
 			//can't get semaphore
 			if(waitCount>MAX_WAIT){
-				XLOG(WARNING) << localAppName << "Begin Sleeping";
+				XLOG(WARNING) << localAppName << " Begin Sleeping";
 				sem_wait(semaphore);
-				XLOG(WARNING) << localAppName << "Be Awakened";
+				XLOG(WARNING) << localAppName << " Be Awakened";
 				break;
 			}
 			waitCount++;
@@ -221,7 +221,7 @@ void sharedMemCtl(string appName, int no, CacheHitStatistics* chs)
 	poolRecord[chs->poolName].first--;
 	slockForRecord.clear(memory_order_release);
 
-	XLOG(INFO) << "Close SHM: " << localAppName;
+	// XLOG(INFO) << "Close SHM: " << localAppName;
 	return;
 }
 

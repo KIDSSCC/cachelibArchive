@@ -138,7 +138,6 @@ void p_key_record(struct tdb_key_record_t *key_record){
 TDB  *_db_open(const char *path, char *mode) {
     TDB  *db = NULL;
     int len = 0;
-    // size_t i = 0;
 
     //Check open mode
     if (strcmp(mode, "r")==-1 && strcmp(mode, "c")==-1 && strcmp(mode, "w")==-1){
@@ -151,7 +150,6 @@ TDB  *_db_open(const char *path, char *mode) {
         return NULL;
     }
 	//Init name
-	// strcpy(db->idx_name, TDB_PATH_PREFIX);
 	strcpy(db->idx_name, path);
 	strcat(db->idx_name, TDB_IDX_SUFFIX);
 

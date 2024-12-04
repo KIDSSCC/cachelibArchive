@@ -1,5 +1,6 @@
 #include "clientAPI.h"
-
+#include <fstream>
+#include <chrono>
 
 CachelibClient::CachelibClient():gen(rd()), dis(0.0, 1.0)
 {
@@ -63,9 +64,9 @@ void CachelibClient::prepare_shm(string appName)
     return;
 }
 
-int CachelibClient::addpool(string poolName)
+int CachelibClient::addpool(string poolName, string sublog)
 {
-    logger.info("----- Shared Memory -----");
+    // logger.info("----- Shared Memory -----");
 	int client_socket = socket(AF_INET, SOCK_STREAM, 0);
 	if(client_socket == -1){
 		cout<<"Error: Failed to create socket\n";
@@ -80,13 +81,14 @@ int CachelibClient::addpool(string poolName)
         exit(EXIT_FAILURE);
 	}
 	string message = "A:" + poolName;
-	//std::cout<<"send message is: "<<message<<std::endl;
+	
 	int bytesSent = send(client_socket, message.c_str(), message.size() + 1, 0);
 	if (bytesSent == -1){
 		cout<<"Error: Failed to send message\n";
 		close(client_socket);
 		exit(EXIT_FAILURE);
 	}
+    this->sublog_ = sublog;
 
 	char buffer[32];
 	memset(buffer, 0, sizeof(buffer));
@@ -97,8 +99,8 @@ int CachelibClient::addpool(string poolName)
 		exit(EXIT_FAILURE);
 	}
 	close(client_socket);
+
 	string recvInfo = buffer;
-	//std::cout<<"client recv is: "<<recvInfo<<std::endl;
 	size_t spacePosition = recvInfo.find(' ');
 	this->pid = stoi(recvInfo.substr(0, spacePosition));
 	this->shmId = recvInfo.substr(spacePosition+1);
@@ -121,9 +123,9 @@ void CachelibClient::setKV(string key,string value)
     memset(message->value,0,sizeof(message->value));
     strcpy(message->key,(this->prefix+key).c_str());
     strcpy(message->value,value.c_str());
-
     //释放资源
     sem_post(this->semaphore);
+
     return ;
 }
 
@@ -154,7 +156,7 @@ string CachelibClient::getKV(string key)
     	sem_post(this->semaphore_Server);
     	if(strlen(this->getValue)!=0)
         	this->getHit++;
-    	//cout<<"in clientAPI get value is: "<<this->getValue<<endl;
+
     	return this->getValue;
     }else{
 	    sem_post(this->semaphore_Server);

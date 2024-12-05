@@ -56,6 +56,10 @@ def get_cpu_allocation(pids):
 
     return cpu_count, cpu_utilization
 
+def Cal_CPU_allocation(curr_allocation, curr_utilization):
+    '''传入当前CPU核心分配数目和利用率，返回新的分配。
+    此处由于CPU利用率基本只与CPU分配核心数目相关，因此分配原则是对于当前'''
+    pass
 
 def get_diskbandwidth_allocation(pids):
     '''

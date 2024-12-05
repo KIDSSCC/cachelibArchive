@@ -40,7 +40,7 @@ class TrainManager:
         # torch.set_printoptions(precision=None, threshold=np.inf, edgeitems=None, linewidth=None, profile=None,
         #                        sci_mode=False)
 
-    def cahce_train(self, first, second, num_tasks, TOTAL_RESOURCE):
+    def cahce_train(self, first, second, num_tasks, TOTAL_RESOURCE, predict_opt = 0):
         '''传入模拟点和任务数量'''
         max_epoch =  15             # 训练轮数 10就够了，之后就开始下降
         maxlen_best_model = 1       # Save the best model
@@ -52,7 +52,8 @@ class TrainManager:
         # 训练批次为200，验证集批次为1
         env = Env(first, second, num_tasks=num_tasks, 
                   train_batch_size = 1024 * 20, validate_batch_size = 4,
-                  simulate_num = 4, TOTAL_CACHE_SIZE=TOTAL_RESOURCE)     
+                  simulate_num = 4, TOTAL_CACHE_SIZE=TOTAL_RESOURCE,
+                  predict_opt=predict_opt)     
         str_time = time.strftime("%Y%m%d_%H%M%S", time.localtime(time.time()))
         save_dir = f'./train_dir/num_task_{num_tasks}_{str_time}'
         os.makedirs(save_dir)
@@ -147,14 +148,11 @@ class TrainManager:
         plt.savefig(save_dir+f'/mean_hitrate with task num {num_tasks}.png', dpi=200)
         plt.show()
 
-    def cpu_train(self, first, second, num_tasks, TOTAL_RESOURCE):
-
-        pass
 if __name__ == '__main__':
     point1=[[20, 20, 10, 21, 12, 14, 17, 9,  17, 20],
             [0.385,   0,       0.8063,  0.0508,  0.804575,  0.2685,   0,       0.63,     0,       0.724]]
     point2=[[18, 18, 12, 24, 16, 9,  18, 14, 16, 15],
             [0.3415,  0,       0.8841,  0.0003, 0.82305,   0.17145,  0,       0.6912,   0,       0.5854]]
     t = TrainManager()
-    t.cahce_train(point1, point2, num_tasks = 10, TOTAL_RESOURCE = 160)
+    t.cahce_train(point1, point2, num_tasks = 10, TOTAL_RESOURCE = 160, predict_opt = 0)
     # 20个任务，80个单位资源

@@ -123,7 +123,7 @@ def for_RL_learning(file_path):
                                                                 change_precision=10
                                                                 )
         temp_time = time.time()
-        logger.info("模拟退火算法调优后分配为: %s,\n预测最佳命中率为: %.4f, 决策总用时: %.8f: ", str(best_cache_solution),
+        logger.info("模拟退火算法调优后cache分配为: %s,\n预测最佳命中率为: %.4f, 决策总用时: %.8f: ", str(best_cache_solution),
                                                                                             best_hitrate,
                                                                                             temp_time - start_time)
         # 4.使得方案生效 ->暂时只改了cache

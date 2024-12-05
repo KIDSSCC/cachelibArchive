@@ -368,6 +368,7 @@ class OnlineProfile(ScheduleFrame):
         self.cache_mode = True
         self.cache_perturbed = None
         self.n_cache = n_resources[0]
+        self.n_bandwidth = n_resources[2]
         self.cache_history_arm = []
         self.cache_hitrate = []
         self.estimate = []
@@ -378,6 +379,9 @@ class OnlineProfile(ScheduleFrame):
     def select_arm(self):
         return self.new_arm
 
+    def cpu_perturb(self):
+        '''对CPU核心分配进行扰动，方法是将当前分配核心数目>2的任务分配1，多出来的核随机分配给其他任务'''
+        
     def update(self, reward, chosen_arm):
         """
         目前是只扰动了Cache
@@ -408,12 +412,15 @@ class OnlineProfile(ScheduleFrame):
         if self.cache_mode:
             # 针对cache资源的单独处理
             cache_arm = list(chosen_arm[0].values())
+            cpu_arm = list(chosen_arm[1].values())
+            bw_arm = list(chosen_arm[2].values())
             if self.times == 0:
                 #TODO:记录第一次的cache信息，并进行扰动
                 self.cache_perturbed = perturb_list_integers_no_same(cache_arm, self.n_cache)
                 self.cache_history_arm.append(cache_arm)
                 self.cache_hitrate.append(reward[2])
-                self.new_arm = [self.cache_perturbed, list(chosen_arm[1].values()), list(chosen_arm[2].values())]
+                self.bw_pertubed = perturb_list_integers_no_same(bw_arm, self.n_bandwidth, epsilon = 3)
+                self.new_arm = [self.cache_perturbed, self.bw_pertubed, list(chosen_arm[2].values())]
             elif self.times == 1:
                 #TODO:记录第二次的信息，并进行动态规划求解
                 self.cache_history_arm.append(cache_arm)

@@ -5,6 +5,7 @@ import sys
 import psutil
 from ScheduleFrame import ConfigManagement, ConfigPackage
 import numpy as np
+import torch
 
 
 cgroup_path = '/sys/fs/cgroup/blkio/'
@@ -58,7 +59,7 @@ def get_cpu_allocation(pids):
 
 def Cal_CPU_allocation(curr_allocation, curr_utilization):
     '''传入当前CPU核心分配数目和利用率，返回新的分配。
-    此处由于CPU利用率基本只与CPU分配核心数目相关，因此分配原则是对于当前'''
+    此处由于CPU利用率基本只与CPU分配核心数目相关，因此给当前任务对于CPU的紧迫需要程度排序，给最紧迫的多一些'''
     pass
 
 def get_diskbandwidth_allocation(pids):
@@ -196,7 +197,6 @@ def get_pool_stats():
         deserialized_map[key] = int(value)
     
     return deserialized_map
-
 
 def clear_groups():
     """
@@ -424,6 +424,8 @@ class SimulationManagement(ConfigManagement):
         for i in range(len(self.all_user)):
             self.all_user[i].resources = new_config[1][i]
 
+def exponential(x, params):
+    res = params[0] * (1 - torch.exp(-params[1] * (x - 0)))
 
 if __name__ == '__main__':
     print('Hello, world')

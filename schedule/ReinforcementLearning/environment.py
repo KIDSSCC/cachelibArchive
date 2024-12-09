@@ -13,6 +13,7 @@ import random
 from torch.utils.data import random_split
 from agent import *
 from scipy.optimize import curve_fit,fsolve
+import re
 
 # 0:Sequential 1:Hotspot 2:Uniform 3:D_ZIPFIAN
 # TOTAL_RESOURCE = 1024 64MB一划分
@@ -42,271 +43,191 @@ database_phase_line = [[[0, 256], [1, 64], [1, 32]],    # leveldb
                        [[0, 256], [3, 32], [2, 16]],
                        [[1, 64], [0, 256], [3, 32]]]
 
-
-def sigmoid(x, a, b, c):
-        """定义 Sigmoid 函数"""
-        if a == 0:
-            return np.zeros_like(x) 
-        return a / (1 + np.exp(-b * (x - c)))
-
-def exponential(x, a , b):
-    """命中率为指数函数时"""
-    res = a * (1 - torch.exp(-b * (x - 0)))
-    res = torch.minimum(res, torch.tensor(1))  # 将结果限制在最大值 1
-    return res
-
-def Cache_Simulated_Line(x, params):
-    '''
-    flag = 0:线性增长
-    flag = 1:指数型增长
-    params : []'''
-    if params[2] == 0:          # y1 = y2 = 1.0，假设线性增长
-        res = params[0] * x
-        res = torch.minimum(res, torch.tensor(1))  # 将结果限制在最大值 1
-        return res
-    if params[2] == 1 :          # y1 != y2
-        res = params[0] * (1 - torch.exp(-params[1] * (x - 0)))
-        res = torch.minimum(res, torch.tensor(1))  # 将结果限制在最大值 1
-        return res
-
-def Calculate_features(x1, x2, y1, y2):
-    # 1. y1 == y2 == 1
-    flag = 1    # 0 横线为0， 1，exponential
-    a = 1
-    b = 1
-    # 1. 两次采样命中率都是1
-    if y1 == 1 and y2 == 1:     
-        flag = 0
-        a = 1 / min(x1, x2)         # a为斜线斜率
-        return [a, b, flag, 0]
-    # 2. 第二次采样的命中率低于0.05 且分配的资源量是比较多的，认为当前是sequence    -> 4可以改
-    if y2 <= 0.05 and x2 >= 4:                   
-        flag = 0
-        a = 0                               # a为斜线斜率
-        return [a, b, flag, 0]
-    # 3. 其余都用exponential
-    # 采样点不精确，cache增大，结果反而缩小
-    if (x2 > x1 and y2 < y1) or (x2 < x1 and y2 > y1):
-        temp = x1
-        x1 = x2
-        x2 = temp
-    params_solution = fsolve(exp_growth, [1, 0.1], args=(x1, y1, x2, y2), maxfev=200)
-    a = params_solution[0]
-    b = params_solution[1]
-    return [a, b, flag]
-
-# Cache分配和命中率之间的关系
-def exp_growth(params, x1, y1, x2, y2):
-    '''
-    params : 初始猜想解
-    '''
-    A, B = params
-    eq1 = A * (1 - np.exp(-B * x1)) - y1
-    eq2 = A * (1 - np.exp(-B * x2)) - y2
-    return [eq1, eq2]
-
-# 带宽分配和99尾延迟之间的关系
-def exp_decay(params, bw1, latency1, bw2, latency2):
-    A, B = params
-    eq1 = A * (np.exp(-B * bw1)) -latency1 # 对应第一个点的方程
-    eq2 = A * (np.exp(-B * bw2)) -latency2 # 对应第二个点的方程
-    return [eq1, eq2]
-
+OffLine_Sample_Analyzed_Path_Cache = '/home/md/SHMCachelib/schedule/ReinforcementLearning/Offline_Sample/20241207_152445_cache_analyzed.log'
+OffLine_Sample_Analyzed_Path_Bw = '/home/md/SHMCachelib/schedule/ReinforcementLearning/Offline_Sample/20241207_152445_bw_analyzed.log'
 
 class Env:
-    def __init__(self, first, second, simulate_num = 4, num_tasks = 10, train_batch_size = 10, validate_batch_size = 1, TOTAL_RESOURCE = 1024, predict_opt = 0):
+    def __init__(self, num_tasks, TOTAL_RESOURCE, train_batch_size = 5, validate_batch_size = 1, Offline_Sample_Analyzed_Path = '', Train_Opt = 0):
         '''
-        simulate_num : 模拟曲线量
-        根据采样的两个点预测分配与曲线之间的关系
-        first/second传入参数形如：[[A_cache,B_cahce,C_cache],[A_hitrate,B_hitrate,C_hitrate]]
+        num_tasks : 任务数量，特征曲线已有
+        TOTAL_RESOURCE : 总资源量
+        Offline_Sample_Result_Path : 真实采样数据
+        Train_Opt : 当前训练目标资源， 0为Cache-hitrate;1为bandwidth-latency
         '''
-        assert len(first[0])==len(second[0]), "任务数量不一致"    
         self.train_batch_size = train_batch_size    # 训练批次
+        self.validate_batch_size = validate_batch_size
         self.num_tasks =num_tasks                   # 当前任务个数
-        self.max_num_tasks = 25                     # [5,25]
-        self.total_list_hit_rate = []       # 存储了来自真实数据采样和变形得到的曲线特征，即[a,b,c]
+        self.max_num_tasks = 25                     # [5,25] 好像用不到
+        self.Train_Opt = Train_Opt
+        self.total_list_hit_rate = []       # 存储了来自真实数据采样和变形得到的曲线特征，即[类型，对应参数]
         self.TOTAL_RESOURCE = TOTAL_RESOURCE
-        self.PredicetOpt = predict_opt      # 当前模拟的是哪一维资源 0 : Cache  1：bandwidth
+        self.Offline_Sample_Analyzed_Path = Offline_Sample_Analyzed_Path    
+        self.TotalFeatures = []    
         
-        # 前num_tasks为真实采样数据
-        for i in range(len(first[0])):
-            # 分别获取两个点的 cache 和 hitrate 值
-            x1, y1 = first[0][i], first[1][i]
-            x2, y2 = second[0][i], second[1][i]
-            # 确保cache值不同，以避免除零 -> predication_model.py
-            assert x1 != x2, f"任务 {i} 的两个点的 cache 值不能相等"
-            res = self.Calculate_features(x1, x2, y1, y2)
-            print('line ', i + 1, res)
-            self.total_list_hit_rate.append(res)
-        # 生成模拟数据
-        for i in range(len(first[0]) * simulate_num):
-            a = self.total_list_hit_rate[i % len(first[0])][0]
-            b = self.total_list_hit_rate[i % len(first[0])][1]
-            flag = self.total_list_hit_rate[i % len(first[0])][2]
-            a_new = a * (1 + np.random.uniform(-0.1, 0.1))
-            b_new = b * (1 + np.random.uniform(-0.1, 0.1))
-            self.total_list_hit_rate.append([a_new,b_new, flag])
-        self.gen_total_lines()
+        # 读取离线采样文件，获取各个任务不同状态下的各个曲线
+        self.ReadfileAndGenTotalLines()     # self.TotalFeatures应当为 25 * 3 * (3 or 4)，即每个元素为[task, phase, A, B]
+        self.Total_Lines, self.Total_task_phase = self.GenTotalLines()      # self.Total_Lines应该是25 * 3 * 128
+        self.train_dataset = self.GenDataset(size_dataset=train_batch_size, num_tasks = num_tasks)
+        self.validate_dataset = self.GenDataset(size_dataset=validate_batch_size, num_tasks = num_tasks)
 
-        self.all_lines, _ = self.gen_total_lines()         # 存储所有的total_list_hit_rate对应的line的128个值
-        # 划分训练集和测试集，同时记录了其采样下标
-        self.train_dataset = self.gen_dataset(size_dataset=train_batch_size, num_tasks = num_tasks, is_train=True)
-        self.validate_dataset = self.gen_dataset(size_dataset=validate_batch_size, num_tasks = num_tasks, is_train=False)
-        # print("train_dataset batch: ", len(self.train_dataset[0]))
-        # print(self.train_dataset[1],'\n=============================')
-        # print("validate_dataset batch: ", len(self.validate_dataset[0]))
-        # print(self.validate_dataset[1],'\n=============================')
+    def ReadfileAndGenTotalLines(self):
+        '''读取离线采样分析好的文件，记录各个值'''
+        if self.Train_Opt == 0:         # Cache - hitrate
+            pattern = r'Task (\d+) in Phase (\d+) Cache-hitrate Simulate Feature : k = ([0-9.]+)'
+            task_phase_features = []
+            with open(self.Offline_Sample_Analyzed_Path, 'r') as file:
+                for line in file:
+                    match = re.search(pattern, line)  # 匹配行
+                    if match:
+                        task = int(match.group(1))  # 获取 Task
+                        phase = int(match.group(2))  # 获取 Phase
+                        k = float(match.group(3))  # 获取 A
+                        task_phase_features.append([task, phase, k])
+                    if len(task_phase_features) == 3:
+                        self.TotalFeatures.append(task_phase_features)  # self.TotalFeatures为 25 * 3的矩阵，每个元素为[task, phase, k]
+                        task_phase_features = []
+            # print(len(self.TotalFeatures))  
+            # print(len(self.TotalFeatures[0]))
+            # print(len(self.TotalFeatures[0][0]))
+        elif self.Train_Opt == 1:       # bandwidth - latency
+            pattern = r'Task (\d+) in Phase (\d+) Bandwidth-latency Simulate Feature : A=([\d\.]+),B=([-+]?\d*\.\d+|\d+)'
+            task_phase_features = []
+            with open(self.Offline_Sample_Analyzed_Path, 'r') as file:
+                for line in file:
+                    match = re.search(pattern, line)  # 匹配行
+                    if match:
+                        task = int(match.group(1))  # 获取 Task
+                        phase = int(match.group(2))  # 获取 Phase
+                        A = float(match.group(3))  # 获取 A
+                        B = float(match.group(4))  # 获取 B
+                        task_phase_features.append([task, phase, A, B])
+                    if len(task_phase_features) == 3:
+                        self.TotalFeatures.append(task_phase_features)  # self.TotalFeatures为 25 * 3的矩阵，每个元素为[task, phase, A, B]
+                        task_phase_features = []
+            # print(len(self.TotalFeatures))  
+            # print(len(self.TotalFeatures[0]))
+            # print(len(self.TotalFeatures[0][0]))
     
-    def Calculate_features(self, x1, x2, y1, y2):
-        if self.PredicetOpt == 0:
-            # 1. y1 == y2 == 1
-            flag = 1    # 0 线性， 1，exponential
-            a = 1
-            b = 1
-            # 1. 两次采样命中率都是1
-            if y1 == 1 and y2 == 1:     
-                flag = 0
-                a = 1 / min(x1, x2)         # a为斜线斜率
-                return [a, b, flag]
-            # 2. 第二次采样的命中率低于0.05 且分配的资源量是比较多的，认为当前是sequence    -> 4可以改
-            if y2 <= 0.05 and x2 >= 4:                   
-                flag = 0
-                a = 0                               # a为斜线斜率
-                return [a, b, flag]
-            # 3. 其余都用exponential
-            # 采样点不精确，cache增大，结果反而缩小
-            if (x2 > x1 and y2 < y1) or (x2 < x1 and y2 > y1):
-                temp = x1
-                x1 = x2
-                x2 = temp
-            params_solution = fsolve(exp_growth, [1, 0.1], args=(x1, y1, x2, y2), maxfev=100)
-            a = params_solution[0]
-            a = max(1, params_solution[0])
-            b = params_solution[1]
-            return [a, b, flag]
-        # 带宽资源
-        if self.PredicetOpt == 1:
-            initial_guess = [max(y1, y2), 0.1] 
-            params_solution = fsolve(exp_decay, initial_guess, args=(x1, y1, x2, y2), maxfev=100)
-            
-    def gen_total_lines(self):
-        '''生成所有的曲线'''
-        if self.PredicetOpt == 0:
-            random_samples = torch.linspace(0, 1, 128) * self.TOTAL_RESOURCE       # 随机生成128个浮点数,范围在0到TOTAL_RESOURCE之间
-            x, _ = torch.sort(random_samples)
-            y_list = []
-            index_list = []
-            for line_index in range(len(self.total_list_hit_rate)):
-                y = self.predict_hitrate(x, self.total_list_hit_rate[line_index])
-                y_list.append(y)
-                index_list.append(torch.tensor([line_index]))
-            
-            y = torch.stack(y_list, dim=0)
-            index = torch.stack(index_list, dim=0)
-            # 找到曲线采样矩阵中的最小值和最大值
-            min_val = torch.min(y)
-            max_val = torch.max(y)
-            # 缩放矩阵到[0,1]范围内
-            y = (y - min_val) / (max_val - min_val)
-            return y, index
-        if self.PredicetOpt == 1:           # 带宽
-            random_samples = torch.linspace(0, 1, 128) * self.TOTAL_RESOURCE       # 随机生成128个浮点数,范围在0到TOTAL_RESOURCE之间
-            x, _ = torch.sort(random_samples)
-            y_list = []
-            index_list = []
-    def gen_dataset(self, size_dataset, num_tasks, is_train=True):
-        '''生成 size_dataset 个 num_tasks 个任务的数据集
-        return : tensor,tensor
+    def GenTotalLines(self):
+        '''生成所有的曲线，一共应当是25 * 3个'''
+        random_samples = torch.linspace(0, 1, 128) * self.TOTAL_RESOURCE       # 随机生成128个浮点数,范围在0到TOTAL_RESOURCE之间
+        x, _ = torch.sort(random_samples)
+        y_list = []                 # 存储了所有任务所有状态的曲线
+        index_list = []             # 每个曲线对应在self.TotalFeatures中的index
+        for task_index in range(len(self.TotalFeatures)):
+            task_phase_lines=[]
+            task_phase_index = []
+            for phase_index in range(len(self.TotalFeatures[0])):
+                y = self.PredictReward(x, self.TotalFeatures[task_index][phase_index])
+                # print(y.shape)
+                task_phase_lines.append(y)
+                task_phase_index.append(torch.tensor([task_index, phase_index]))
+                # print(task_phase_lines.shape)
+            # print('task_phase_lines', task_phase_lines)         # 3 * 128
+            # print('task_phase_index', task_phase_index)         # [tensor([24,  0]), tensor([24,  1]), tensor([24,  2])]
+            # print('task_phase_lines.shape',task_phase_lines.shape)
+            y_list.append(torch.stack(task_phase_lines, dim=0))
+            index_list.append(torch.stack(task_phase_index, dim=0))
+        y = torch.stack(y_list, dim=0)          # 25 * 3 * 128 ->cache ; 25 * 3 * 128 ->bandwidth
+        # print('y.shape', y.shape)
+        index = torch.stack(index_list, dim=0)      # 25 * 3 * 2 ->cache ; 25 * 3 * 2 ->bandwidth
+        # print('index.shape', index.shape)
+        return y, index
+    
+    def PredictReward(self, x, features):
+        '''计算reward'''
+        if self.Train_Opt == 0:         # cache - hitrate 斜线
+            res = features[2] * x
+            res = torch.minimum(res, torch.tensor(1))  # hitrate <= 1
+            return res
+        elif self.Train_Opt == 1:       # bandwidth - latency
+            res = features[2] * (torch.exp(-features[3] * x))
+            res = torch.maximum(res, torch.tensor(0))
+            return res                                  # latency >= 0
+    
+    def GenDataset(self, size_dataset, num_tasks):
+        '''生成 size_dataset 个 num_tasks 个任务的数据集'''
+        dataset_state = []
+        task_state_index = []
+        for _ in range(size_dataset):
+            # 随机选择num_tasks个任务为一组曲线
+            choose_task_index = random.sample(range(len(self.TotalFeatures)), k=num_tasks)       # 从25个任务中随机挑选num_tasks个任务
+            choose_phase_index = random.randint(0, len(self.TotalFeatures[0]) - 1)          # 随机选择一个状态
+            choosed_line = torch.stack([self.Total_Lines[i][choose_phase_index] for i in choose_task_index])
+            task_state_index.append([[i,choose_phase_index] for i in choose_task_index])
+            dataset_state.append(choosed_line)
+        dataset_state = torch.stack(dataset_state, dim=0)       # batch_size * numtasks * 128
+        # print(dataset_state)
+        task_state_index = torch.tensor(task_state_index, dtype=torch.int64)        # batch_size * numtasks * 2
+        # print(dataset_state.shape, task_state_index.shape)
         '''
-        if is_train:
-            dataset_state = []
-            task_state_index = []       # 所有组的num_tasks任务状态下标
-            for batch in range(size_dataset):
-                # 随机选择num_tasks个任务为一组曲线
-                choose_index = random.choices(range(len(self.total_list_hit_rate)), k=num_tasks)    # 选择的曲线下标
-
-                # y = self.prediction_line(sorted_samples_x, self.prediction_line[choose_index].unsqueeze(1).repeat(1, 128))
-                choose_state = torch.stack([self.all_lines[i] for i in choose_index])  
-                
-                task_state_index.append(choose_index)
-                dataset_state.append(choose_state)
-
-            dataset_state = torch.stack(dataset_state, dim=0)
-            task_state_index = torch.tensor(task_state_index, dtype=torch.int64)
-            return dataset_state,task_state_index
-        else:
-            dataset_state = []
-            task_state_index = []       # 所有组的num_tasks任务状态下标
-            for batch in range(size_dataset):
-                choose_index = [i for i in range(num_tasks)]
-                choose_state = torch.stack([self.all_lines[i] for i in choose_index])  
-                task_state_index.append(choose_index)
-                dataset_state.append(choose_state)
-            dataset_state = torch.stack(dataset_state, dim=0)
-            task_state_index = torch.tensor(task_state_index, dtype=torch.int64)
-            return dataset_state,task_state_index
+        dataset_state = size_dataset * num_tasks * 128
+        task_state_index = size_dataset * num_tasks * 2         2:[task_index, phase_index]
+        '''
+        return dataset_state,task_state_index
     
     def update_train_dataset(self):
         '''更新一批训练集'''
-        self.train_dataset = self.gen_instances(size_dataset=self.train_batch_size, num_tasks=self.num_tasks)
-        print("train_dataset : ")
-        print(self.train_dataset[0])
-        print(self.train_dataset[1],'\n=============================')
-    
-    def predict_hitrate(self, cache_size, action_hitrate_index):
-        """
-        传入一组分配的 cache 大小和对应预测曲线的参数 abc，返回在所分配 cache 大小下的命中率。
-        :param cache_size: 分配的 cache 大小，可以是标量或一组值 (NumPy 数组或 PyTorch 张量)
-        :param action_hitrate_index: 一条曲线
-        :return: 计算得到的命中率，与 cache_size 的形状一致
-        """
-        if self.PredicetOpt == 0:
-            res = Cache_Simulated_Line(cache_size, action_hitrate_index)
-            return res
-        
+        self.train_dataset = self.GenDataset(size_dataset=self.train_batch_size, num_tasks = self.num_tasks)
+        print("================================ train_dataset changed ================================ ")
+        # print(self.train_dataset[0])
+        # print(self.train_dataset[1],'\n=============================')
 
-    def compete_hitrate(self, action, action_hitrate_index, validate_compute = False):
-        """
-        计算当前动作下的命中率，并返回一个列表，列表中包含所有任务的命中率
-        :param action: 当前动作，是一个列表，长度为任务数，每个元素表示当前任务的缓存大小
-        :param action_hitrate_index: 对应预测曲线的下标，长度为任务数，每个元素为该任务所对应的特征曲线
-        :return: 计算得到的命中率，与 action 的形状一致
-        """
-        if len(action) != len(action_hitrate_index):
+    def CompeteReward(self, action, action_reward_index):
+        '''
+        action为[ , ,……,  ]
+        action_reward_index为当前任务曲线在self.Total_task_phase中的坐标 eg:[0, 4]'''
+        if len(action) != len(action_reward_index):
             print("action : ", len(action))
             print("action : ", action)
-            print("action_hitrate_index : ", len(action_hitrate_index))
-            print("action_hitrate_index : ", action_hitrate_index)
-            raise ValueError("action 和 action_hitrate_index 的长度必须相等！")
-        list_total_hitrate = []
+            print("action_reward_index : ", len(action_reward_index))
+            print("action_reward_index : ", action_reward_index)
+            raise ValueError("action 和 action_reward_index 的长度必须相等！")
+        list_total_reward = []
+        # print("action_reward_index : ", action_reward_index)
+        # print("action_reward_index[0][0].item()", action_reward_index[0][0].item())
+        # print("action_reward_index[0][1].item()", action_reward_index[0][1].item())
         for i in range(len(action)):
-            res = self.predict_hitrate(action[i], self.total_list_hit_rate[action_hitrate_index[i]])
-            list_total_hitrate.append(res)
-        return torch.tensor(list_total_hitrate, dtype=torch.float64)
+            res = self.PredictReward(action[i], self.TotalFeatures[action_reward_index[i][0].item()][action_reward_index[i][1].item()] )
+            list_total_reward.append(res)
+        return torch.tensor(list_total_reward, dtype=torch.float64)
     
     def step(self, action, index):
         '''根据action计算返回reward，单步决策，无state'''
         if action.dim() > 1:
             batch_size, num_task = action.size()
+            '''
+            action = [  [allocations1, allocations2,……, allocations n],
+                        [allocations1, allocations2,……, allocations n],
+                        [allocations1, allocations2,……, allocations n],
+                        [allocations1, allocations2,……, allocations n],
+                        ……,
+                        [allocations1, allocations2,……, allocations n],]
+            index = [   [[0,0],[1,0],……, [24,0]],这一批选择了0~24号任务中
+                        [[0,0],[1,0],……, [24,0]],
+                        [[0,0],[1,0],……, [24,0]],
+                        ……
+                        [[0,0],[1,0],……, [24,0]],]任务特征值
+            '''
         else:
             num_task = action.size(0)
             batch_size = 1
         # Cache划分
-        if self.PredicetOpt == 0:       
+        if self.Train_Opt == 0:       
             allocate_size = action * self.TOTAL_RESOURCE
             # 减少分配空间
-            sub_allocate_size = allocate_size - 128 * 0.05
+            sub_allocate_size = allocate_size - self.TOTAL_RESOURCE * 0.05
             sub_allocate_size = torch.where(sub_allocate_size < 0., torch.tensor(0.), sub_allocate_size)
             # 增大分配空间
-            add_allocate_size = allocate_size + 128 * 0.05
-            add_allocate_size = torch.where(add_allocate_size > 128., torch.tensor(128.), add_allocate_size)
+            add_allocate_size = allocate_size + self.TOTAL_RESOURCE * 0.05
+            add_allocate_size = torch.where(add_allocate_size > self.TOTAL_RESOURCE, torch.tensor(self.TOTAL_RESOURCE), add_allocate_size)
             list_hitrate = []
             list_sub_allocate_hitrate = []
             list_add_allocate_hitrate = []
             for batch_idx in range(batch_size):
-                hitrate_line = self.compete_hitrate(allocate_size[batch_idx], index[batch_idx])
-                sub_allocate_hitrate = self.compete_hitrate(sub_allocate_size[batch_idx], index[batch_idx])
-                add_allocate_hitrate = self.compete_hitrate(add_allocate_size[batch_idx], index[batch_idx])
+                hitrate_line = self.CompeteReward(allocate_size[batch_idx], index[batch_idx])
+                sub_allocate_hitrate = self.CompeteReward(sub_allocate_size[batch_idx], index[batch_idx])
+                add_allocate_hitrate = self.CompeteReward(add_allocate_size[batch_idx], index[batch_idx])
                 list_hitrate.append(hitrate_line)
                 list_sub_allocate_hitrate.append(sub_allocate_hitrate)
                 list_add_allocate_hitrate.append(add_allocate_hitrate)
@@ -331,32 +252,68 @@ class Env:
             done = None
             return state, reward, done
         # 带宽划分：
+        if self.Train_Opt == 1:       
+            allocate_size = action * self.TOTAL_RESOURCE
+            # 减少分配空间
+            sub_allocate_size = allocate_size - self.TOTAL_RESOURCE * 0.05
+            sub_allocate_size = torch.where(sub_allocate_size < 0., torch.tensor(0.), sub_allocate_size)
+            # 增大分配空间
+            add_allocate_size = allocate_size + self.TOTAL_RESOURCE * 0.05
+            add_allocate_size = torch.where(add_allocate_size > self.TOTAL_RESOURCE, torch.tensor(self.TOTAL_RESOURCE), add_allocate_size)
+            list_delay = []
+            list_sub_allocate_delay = []
+            list_add_allocate_delay = []
+            for batch_idx in range(batch_size):
+                delay = self.CompeteReward(allocate_size[batch_idx], index[batch_idx])
+                sub_allocate_delay = self.CompeteReward(sub_allocate_size[batch_idx], index[batch_idx])
+                add_allocate_delay = self.CompeteReward(add_allocate_size[batch_idx], index[batch_idx])
+                list_delay.append(delay)
+                list_sub_allocate_delay.append(sub_allocate_delay)
+                list_add_allocate_delay.append(add_allocate_delay)
+            # [batch,num_task]
+            list_delay = torch.stack(list_delay, dim=0)
+            list_sub_allocate_delay = torch.stack(list_sub_allocate_delay, dim=0)
+            list_add_allocate_delay = torch.stack(list_add_allocate_delay, dim=0)
+            # 减少分配时，增加的延迟
+            add_delay = list_sub_allocate_delay - list_delay
+            # 增大分配时，减小的延迟
+            sub_delay = list_delay - list_add_allocate_delay
+            # 如果存在小于0，改为0
+            add_delay = torch.where(add_delay < 0., torch.tensor(0.), add_delay)
+            sub_delay = torch.where(sub_delay < 0., torch.tensor(0.), sub_delay)
+            # n个task的平均延迟
+            mean_list_delay = torch.mean(list_delay, dim=-1,keepdim=True)
+            # 平均延迟 / 每个任务的延迟 : 相较于平均延迟，任务延迟越小该奖励越大
+            reward_delay = mean_list_delay/ (list_delay + 1e-9)
+            # 当减小相同分配大小时，相较于平均增大的延迟，任务增加的延迟越大，说明不应该减少该任务的分配大小，该奖励越大
+            mean_add_delay = torch.mean(add_delay, dim=-1,keepdim=True)
+            reward_add_delay = add_delay / (mean_add_delay + 1e-9)
+            # 当增大相同分配大小时，相较于平均减少的延迟，任务减少的延迟越大，说明应该增大该任务的分配大小，该奖励越大
+            mean_sub_delay = torch.mean(sub_delay, dim=-1,keepdim=True)
+            reward_sub_delay =  sub_delay / (mean_sub_delay + 1e-9)
+            # 奖励由三部分组成,当前分配比例下延迟小，如果增大分配大小延迟减少的多，如果减少分配大小延迟增大的多
+            reward = (1.0 * reward_delay) + (0.5 * reward_add_delay) + (0.5 * reward_sub_delay)
+            reward = (reward - reward.mean()) / (reward.std() + 1e-9)
+            # 无下一个状态
+            state = None
+            # 一次即结束
+            done = None
+            return state, reward, done
+            
 
     
 
 if __name__ == '__main__':
-    point1=[[20, 20, 10, 21, 12, 14, 17, 9,  17, 20],[0.385,   0,       0.8063,  0.0508,  0.804575,  0.2685,   0,       0.63,     0,       0.724]]
-    point2=[[18, 18, 12, 24, 16, 9,  18, 14, 16, 15],[0.3415,  0,       0.8841,  0.0003, 0.82305,   0.17145,  0,       0.6912,   0,       0.5854]]
-    env=Env(point1,point2, simulate_num=0)
+    env = Env(num_tasks=10, TOTAL_RESOURCE=160, Offline_Sample_Analyzed_Path=OffLine_Sample_Analyzed_Path_Bw, Train_Opt=1)
 
-    # 训练
-    # point3=[[20, 20, 10, 21, 12, 14, 17, 9,  17, 20],[0.385,   0,       0.8063,  0.0508,  0.804575,  0.2685,   0,       0.63,     0,       0.724]]
-    # point4=[[18, 18, 12, 24, 16, 9,  18, 14, 16, 15],[0.3415,  0,       0.8841,  0.0003, 0.82305,   0.17145,  0,       0.6912,   0,       0.5854]]
-    # env=Env(point3,point4)
-    total_list_hit_rate = env.total_list_hit_rate
-    x = torch.linspace(0, 50, 100)
-    # print("validate_dataset is ",env.validate_dataset[1][0])
-    for i in range(len(env.total_list_hit_rate)):
-        # line = exponential(x, env.total_list_hit_rate[i][0], env.total_list_hit_rate[i][1])
-        line = Cache_Simulated_Line(x, env.total_list_hit_rate[i])
-        plt.plot(x, line, label='line' + str(i + 1))
-    plt.legend()
-    plt.axvline(x=16, color='red', linestyle='--', linewidth=2, label='x = 16')
-    plt.title("Function Mapping")
-    plt.xlabel("Original Values")
-    plt.ylabel("Mapped Values (0-1)")
-    plt.savefig('figures/Sampled_simulation.png')
-    plt.clf()
-
+    # x = torch.linspace(0, 70, 100)
+    # line = log_func(x, 1, (math.e - 1) / 32)
+    # plt.plot(x, line, label='line')
+    # plt.legend()
+    # plt.axvline(x=32, color='red', linestyle='--', linewidth=2, label='x = 32')
+    # plt.title("Function Mapping")
+    # plt.xlabel("Original Values")
+    # plt.ylabel("Mapped Values (0-1)")
+    # plt.savefig('figures/Simulated_temp.png')
 
     

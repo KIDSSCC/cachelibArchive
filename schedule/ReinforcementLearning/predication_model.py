@@ -9,23 +9,12 @@ import time
 import matplotlib.pyplot as plt
 from scipy.optimize import fsolve
 import torch
+import re
 from agent import *
 
-# def sigmoid(x, a, b, c):        # 被弃用了
-#         """定义 Sigmoid 函数"""
-#         return a / (1 + np.exp(-b * (x - c)))
-
-# def exponential(x, a , b):
-#     """命中率为指数函数时"""
-#     if not isinstance(x, torch.Tensor): 
-#         x = torch.tensor(x, dtype=torch.float32)  # 如果 x 不是 Tensor 类型，则转换为 Tensor
-#     if not isinstance(a, torch.Tensor): 
-#         a = torch.tensor(a, dtype=torch.float32)  # 如果 a 不是 Tensor 类型，则转换为 Tensor
-#     if not isinstance(b, torch.Tensor): 
-#         b = torch.tensor(b, dtype=torch.float32)  # 如果 b 不是 Tensor 类型，则转换为 Tensor
-#     res = a * (1 - torch.exp(-b * (x - 0)))
-#     res = torch.minimum(res, torch.tensor(1))  # 将结果限制在最大值 1
-#     return res
+Cache_Analyzed_File = '/home/md/SHMCachelib/schedule/ReinforcementLearning/Offline_Sample/20241207_152445_cache_analyzed.log'
+Bandwidth_Analyzed_File = '/home/md/SHMCachelib/schedule/ReinforcementLearning/Offline_Sample/20241207_152445_bw_analyzed.log'
+CPU_Analyzed_File = '/home/md/SHMCachelib/schedule/ReinforcementLearning/Offline_Sample/20241207_152445_cpu_analyzed.log'
 
 def Calculate_features(cache1, cache2, hitrate1, hitrate2):
     # 1. hitrate1 == hitrate2 == 1
@@ -52,23 +41,7 @@ def Calculate_features(cache1, cache2, hitrate1, hitrate2):
     a = params_solution[0]
     b = params_solution[1]
     return [a, b, flag]
-def predict_hitrate(cache_size, action_hitrate_index):
-    """
-    传入一组分配的 cache 大小和对应预测曲线的参数 abc，返回在所分配 cache 大小下的命中率。
-    :param cache_size: 分配的 cache 大小，可以是标量或一组值 (NumPy 数组或 PyTorch 张量)
-    :param action_hitrate_index: 一条曲线
-    :return: 计算得到的命中率，与 cache_size 的形状一致
-    """
-    cache_size = torch.tensor(cache_size, dtype=torch.float32)
-    if action_hitrate_index[2] == 0:          # hitrate1 = hitrate2 = 1.0，假设线性增长
-        res = action_hitrate_index[0] * cache_size
-        res = torch.tensor(res)
-        res = torch.minimum(res, torch.tensor(1))  # 将结果限制在最大值 1
-        return res
-    if action_hitrate_index[2] == 1:          # hitrate1 != hitrate2
-        res = action_hitrate_index[0] * (1 - torch.exp(-action_hitrate_index[1] * (cache_size - 0)))
-        res = torch.minimum(res, torch.tensor(1))  # 将结果限制在最大值 1
-        return res
+
 def exp_growth(params, x1, y1, x2, y2):
     '''
     params : 初始猜想解
@@ -77,38 +50,6 @@ def exp_growth(params, x1, y1, x2, y2):
     eq1 = A * (1 - np.exp(-B * x1)) - y1
     eq2 = A * (1 - np.exp(-B * x2)) - y2
     return [eq1, eq2]
-
-def do_simulation(first, second):
-    '''根据两个点做曲线模拟'''
-    assert len(first[0])==len(second[0]), "任务数量不一致"  
-    TOTAL_CACHE_SIZE = sum(first[0])        # 总资源量
-    num_tasks = len(first[0])  # 任务数量
-    predictions = []
-    # 函数模拟
-    for i in range(num_tasks):
-        # 分别获取两个点的 cache 和 hitrate 值
-        cache1, hitrate1 = first[0][i], first[1][i]
-        cache2, hitrate2 = second[0][i], second[1][i]
-        # 确保cache值不同，以避免除零 -> predication_model.py
-        assert cache1 != cache2, f"任务 {i} 的两个点的 cache 值不能相等"
-        res = Calculate_features(cache1, cache2, hitrate1, hitrate2)
-        predictions.append(res)
-    random_samples = torch.linspace(0, 1, 128) * TOTAL_CACHE_SIZE
-    x, _ = torch.sort(random_samples)
-    y_list = []
-    for i in range(len(predictions)):
-        # print(f'predictions[{i}] : , {predictions[i]}')
-        y = predict_hitrate(x, predictions[i])
-        # print('y : ', y)
-        y_list.append(y)
-    y = torch.stack(y_list, dim=0)
-    # print("y : ",y)
-    # 找到曲线采样矩阵中的最小值和最大值
-    min_val = torch.min(y)
-    max_val = torch.max(y)
-    # 缩放矩阵到[0,1]范围内
-    y = (y - min_val) / (max_val - min_val)
-    return y,predictions
 
 def get_neighbor(NUM_TASK, TOTAL_CACHE, solution,lb,ub,change_precision=0.5):
     ''' 随机选择一个任务修改其缓存分配，生成一个新的候选解
@@ -164,15 +105,214 @@ def get_neighbor(NUM_TASK, TOTAL_CACHE, solution,lb,ub,change_precision=0.5):
                 remaining_cache = TOTAL_CACHE - torch.sum(neighbor)
     return neighbor
 
-def get_curr_avg_hitrate( cache_allocation, workload_features):
-    '''根据当前缓存分配和工作负载对应的特征曲线计算当前的命中率'''
-    assert len(cache_allocation) == len(workload_features)      # 确保两个向量长度一致
-    total_hitrate = 0.0
+def get_curr_avg_latency(bandwidth_allocation, workload_features):
+    assert len(bandwidth_allocation) == len(workload_features)  # 确保两个向量长度一致
+    latencies = []
+    for i in range(len(bandwidth_allocation)):
+        latency = exp_decay_model(x=bandwidth_allocation[i], A=workload_features[i][0],B=workload_features[i][1])
+        latencies.append(latency)
+    return sum(latencies) / len(latencies)
+def get_curr_avg_hitrate(cache_allocation, workload_features):
+    '''根据当前缓存分配和工作负载对应的特征曲线计算当前的命中率，优先满足命中率接近1的任务，剩余任务尽量提高命中率'''
+    assert len(cache_allocation) == len(workload_features)  # 确保两个向量长度一致
+    # 计算每个任务的命中率
+    hitrates = []
     for i in range(len(cache_allocation)):
-        total_hitrate += predict_hitrate(cache_size=cache_allocation[i], action_hitrate_index= workload_features[i])
-    return  total_hitrate / len(cache_allocation)
+        hitrate = linear_model(x=cache_allocation[i], k=workload_features[i])
+        hitrates.append(hitrate)
+    # 任务的命中率和索引按命中率排序（从高到低）
+    sorted_hitrates_with_index = sorted(enumerate(hitrates), key=lambda x: x[1], reverse=True)
+    # 优先考虑命中率较高的任务
+    total_hitrate = 0.0
+    total_weight = 0.0
+    max_hitrate = 1.0
+    for idx, hitrate in sorted_hitrates_with_index:
+        # 优先处理命中率接近1的任务
+        if hitrate >= max_hitrate - 0.05:  # 设定一个容忍误差
+            # 给命中率高的任务更大的权重
+            weight = 2.0  # 权重可以调整，使得高命中率任务的贡献更大
+        else:
+            # 其他任务按常规权重处理
+            weight = 1.0
+        total_hitrate += hitrate * weight
+        total_weight += weight
 
-def simulated_annealing2(NUM_TASK, TOTAL_CACHE, func, x0, features, T_max, T_min, L, max_stay_counter, cooling_rate, precision, lb, ub, change_precision):
+    # 返回加权后的平均命中率
+    return total_hitrate / total_weight
+
+# 任务名称与曲线的映射
+def MapTaskNameToLines(apps_name, current_phase, total_cache_num, total_cpu_num, total_bw_num):
+    '''
+    apps_name : ['leveldb_1', 'leveldb_2', 'mongodb_1', 'mongodb_2', 'mysql_1', 'mysql_2', 'sqlite_1', 'sqlite_2', 'tmdb_1', 'tmdb_2']
+    '''
+    apps_id = []
+    for app in apps_name:
+        if app.startswith('leveldb'):  # 判断是否以 leveldb 开头
+            task_num = int(app.split('_')[1]) 
+            apps_id.append(task_num)
+        if app.startswith('mongodb'):  
+            task_num = int(app.split('_')[1]) + 5
+            apps_id.append(task_num)
+        if app.startswith('mysql'):  
+            task_num = int(app.split('_')[1]) + 10
+            apps_id.append(task_num)
+        if app.startswith('sqlite'):  
+            task_num = int(app.split('_')[1]) + 15
+            apps_id.append(task_num)
+        if app.startswith('tmdb'):  
+            task_num = int(app.split('_')[1]) + 20
+            apps_id.append(task_num)
+    # print('apps_id',apps_id)
+    # 完成任务 -> Cache曲线映射
+    apps_cacheline_features = []
+    for i in apps_id:
+        cache_pattern = fr"Task {i} in Phase {current_phase} Cache-hitrate Simulate Feature : k = ([\d\.]+)"
+        with open(Cache_Analyzed_File, 'r') as file:
+            for line in file:
+                match = re.search(cache_pattern, line)  # 匹配行
+                if match:
+                    apps_cacheline_features.append(float(match.group(1)))
+    random_samples = torch.linspace(0, 1, 128) * total_cache_num  # 随机生成128个浮点数,范围在0到TOTAL_RESOURCE之间
+    x, _ = torch.sort(random_samples)
+    y_list = []
+    for i in range(len(apps_name)):
+        y = linear_model(x, apps_cacheline_features[i])
+        y_list.append(y)
+    cache_states = torch.stack(y_list, dim=0)       # torch.Size([10, 128])
+    # 完成任务 ->带宽映射
+    apps_bwline_features = []
+    for i in apps_id:
+        bw_pattern = fr"Task {i} in Phase {current_phase} Bandwidth-latency Simulate Feature : A=([\d\.]+),B=([-+]?\d*\.\d+|\d+)"
+        with open(Bandwidth_Analyzed_File, 'r') as file:
+            for line in file:
+                match = re.search(bw_pattern, line)  # 匹配行
+                if match:
+                    # print(line)
+                    A = float(match.group(1))
+                    B = float(match.group(2))
+                    apps_bwline_features.append([A,B])
+    # print(apps_bwline_features)
+    random_samples = torch.linspace(0, 1, 128) * total_bw_num  # 随机生成128个浮点数,范围在0到TOTAL_RESOURCE之间
+    x, _ = torch.sort(random_samples)
+    y_list = []
+    for i in range(len(apps_name)):
+        y = exp_decay_model(x, apps_bwline_features[i][0],apps_bwline_features[i][1])
+        y_list.append(y)
+    bw_states = torch.stack(y_list, dim=0)       # torch.Size([10, 128])
+    # 对当前任务对CPU的需求程度进行排序
+    CPU_demands = []
+    for i in apps_id:
+        cpu_pattern = fr"Task {i} in Phase {current_phase} CPU allocation:\[(.*?)\],\s*utilization:\[(.*?)\]"
+        with open(CPU_Analyzed_File, 'r') as file:
+            for line in file:
+                match = re.search(cpu_pattern, line)  # 匹配行
+                if match:
+                    CPU = match.group(1)
+                    CPU = list(map(int, CPU.split(', ')))
+                    utilization = match.group(2)
+                    utilization = list(map(float, utilization.split(', ')))
+                    CPU_demands.append( sum(u / c for u, c in zip(utilization, CPU)) / len(CPU))
+    cpu_allocation = Calculate_CPU_Allocation(CPU_demands, total_cpu_num)
+    return cache_states, apps_cacheline_features, bw_states, apps_bwline_features, cpu_allocation
+
+def Calculate_CPU_Allocation(cpu_demands, total_cpu_num):
+    # print('len(cpu_demands)', len(cpu_demands))
+    # print('cpu_demands', cpu_demands)
+    # print('total_cpu_num', total_cpu_num)
+    cpu_allocation = [0] * len(cpu_demands)
+    sorted_demands = sorted(enumerate(cpu_demands), key=lambda x: x[1], reverse=True)
+    remaining_cpu = total_cpu_num
+    while remaining_cpu > 0:
+        for idx in sorted_demands:
+            if remaining_cpu == 0:
+                break
+            cpu_allocation[idx[0]] += 1
+            remaining_cpu -= 1
+    # print(cpu_allocation)
+    return cpu_allocation
+def exp_decay_model(x, A, B):
+    return torch.maximum(A * (torch.exp(-B * x)), torch.tensor(0.0, dtype=torch.float64))
+def linear_model(x, k):
+    return torch.minimum(k * x, torch.tensor(1.0, dtype=torch.float64))
+
+def cache_simulated_annealing(NUM_TASK, TOTAL_CACHE, func, x0, features, T_max, T_min, L, max_stay_counter, cooling_rate, precision, lb, ub, change_precision):
+    '''模拟退火算法
+    从最高温降到最低温（保持不变），到达最低温时如果连续max_stay_counter次迭代中最优解没有改变则退出算法。
+    :param func: 目标函数
+    :param x0: 初始解向量
+    :param features: 特征向量向量，每个元素是一个向量，对应一个任务的命中率曲线
+    :param T_max: 初始温度
+    :param T_min: 最低温度
+    :param L: 每个温度下的迭代次数
+    :param max_stay_counter: 在达到最低温度后，如果连续max_stay_counter次迭代中最优解没有改变，则停止算法
+    :param cooling_rate: 温度变化率
+    :param precision: 在达到最低温度后，统计stay_counter的精度
+    :param lb: 解向量的下界
+    :param ub: 解向量的上界
+    :param change_precision: 邻域生成算子的调整精度
+    :return:
+    '''
+    # current_solution = x0  # 当前解
+    # current_hitrate = func(current_solution, features)  # 当前解的命中率
+    # best_solution = current_solution  # 最优解
+    # best_hitrate = current_hitrate  # 最优解的综合命中率
+
+    # temperature = T_max  # 初始温度
+    # flag_reach_min_temp =False
+    # stay_counter = 0  # 记录连续迭代中最优解未改变的次数
+
+    # while(True):
+    #     for i in range(L):
+    #         new_solution = get_neighbor(NUM_TASK, TOTAL_CACHE, current_solution,lb,ub,change_precision)  # 生成邻居解
+    #         new_hitrate = func(new_solution, features)  # 邻居解的延迟
+    #         delta_hitrate = new_hitrate - current_hitrate  # 延迟变化量
+    #         # 判断是否接受邻居解
+    #         if delta_hitrate > 0 :
+    #             current_solution = new_solution
+    #             current_hitrate = new_hitrate
+    #             best_solution = current_solution
+    #             best_hitrate = current_hitrate
+    #             # 到达最低温，新解有一定的下降，若下降精度小于precision
+    #             if flag_reach_min_temp :
+    #                 if abs(delta_hitrate) < precision:
+    #                     stay_counter += 1
+    #                 else:
+    #                     stay_counter = 0
+    #             continue
+    #         elif torch.exp(delta_hitrate / temperature) > torch.rand(1) :
+    #             current_solution = new_solution
+    #             current_hitrate = new_hitrate
+    #             if flag_reach_min_temp:
+    #                 stay_counter += 1
+    #             continue
+    #         if flag_reach_min_temp:
+    #             stay_counter += 1
+    #     if temperature > T_min:
+    #         temperature = temperature * cooling_rate  # 降低温度
+    #     else:
+    #         flag_reach_min_temp = True
+    #     # 检查是否达到最低温度和连续迭代中最优解未改变的次数
+    #     if flag_reach_min_temp and stay_counter >= max_stay_counter:
+    #         break
+    # best_solution = best_solution.tolist()
+    # truncated = [int(k) for k in best_solution]
+    # differences = [x - t for x, t in zip(best_solution, truncated)]
+    # total_difference = round(sum(best_solution) - sum(truncated))
+    # indices = sorted(range(len(differences)), key=lambda i: -differences[i])
+    # for i in range(total_difference):
+    #     truncated[indices[i]] += 1
+    # return truncated, best_hitrate
+    best_solution = x0.tolist()
+    best_hitrate = func(x0, features)
+    truncated = [int(k) for k in best_solution]
+    differences = [x - t for x, t in zip(best_solution, truncated)]
+    total_difference = round(sum(best_solution) - sum(truncated))
+    indices = sorted(range(len(differences)), key=lambda i: -differences[i])
+    for i in range(total_difference):
+        truncated[indices[i]] += 1
+    return truncated, best_hitrate
+
+def bandwidth_simulated_annealing(NUM_TASK, TOTAL_BANDWIDTH, func, x0, features, T_max, T_min, L, max_stay_counter, cooling_rate, precision, lb, ub, change_precision):
     '''模拟退火算法
     从最高温降到最低温（保持不变），到达最低温时如果连续max_stay_counter次迭代中最优解没有改变则退出算法。
     :param func: 目标函数
@@ -190,9 +330,9 @@ def simulated_annealing2(NUM_TASK, TOTAL_CACHE, func, x0, features, T_max, T_min
     :return:
     '''
     current_solution = x0  # 当前解
-    current_hitrate = func(current_solution, features)  # 当前解的命中率
+    current_latency = func(current_solution, features)  # 当前解的命中率
     best_solution = current_solution  # 最优解
-    best_hitrate = current_hitrate  # 最优解的综合命中率
+    best_latency = current_latency  # 最优解的综合命中率
 
     temperature = T_max  # 初始温度
     flag_reach_min_temp =False
@@ -200,28 +340,25 @@ def simulated_annealing2(NUM_TASK, TOTAL_CACHE, func, x0, features, T_max, T_min
 
     while(True):
         for i in range(L):
-            new_solution = get_neighbor(NUM_TASK, TOTAL_CACHE, current_solution,lb,ub,change_precision)  # 生成邻居解
-            new_hitrate = func(new_solution, features)  # 邻居解的延迟
-
-            delta_hitrate = new_hitrate - current_hitrate  # 延迟变化量
-
+            new_solution = get_neighbor(NUM_TASK, TOTAL_BANDWIDTH, current_solution,lb,ub,change_precision)  # 生成邻居解
+            new_latency = func(new_solution, features)  # 邻居解的延迟
+            delta_latency = new_latency - current_latency  # 延迟变化量
             # 判断是否接受邻居解
-            if delta_hitrate > 0 :
+            if delta_latency < 0 :
                 current_solution = new_solution
-                current_hitrate = new_hitrate
+                current_latency = new_latency
                 best_solution = current_solution
-                best_hitrate = current_hitrate
+                best_latency = current_latency
                 # 到达最低温，新解有一定的下降，若下降精度小于precision
                 if flag_reach_min_temp :
-                    if abs(delta_hitrate) < precision:
+                    if abs(delta_latency) < precision:
                         stay_counter += 1
                     else:
                         stay_counter = 0
                 continue
-            # elif np.exp(delta_hitrate / temperature) > np.random.rand() :
-            elif torch.exp(delta_hitrate / temperature) > torch.rand(1) :
+            elif torch.exp(delta_latency / temperature) > torch.rand(1) :
                 current_solution = new_solution
-                current_hitrate = new_hitrate
+                current_latency = new_latency
                 if flag_reach_min_temp:
                     stay_counter += 1
                 continue
@@ -237,14 +374,13 @@ def simulated_annealing2(NUM_TASK, TOTAL_CACHE, func, x0, features, T_max, T_min
             break
     # print(iteration, temperature)
     best_solution = best_solution.tolist()
-    # TODO : 返回的solution只能是int
     truncated = [int(k) for k in best_solution]
     differences = [x - t for x, t in zip(best_solution, truncated)]
     total_difference = round(sum(best_solution) - sum(truncated))
     indices = sorted(range(len(differences)), key=lambda i: -differences[i])
     for i in range(total_difference):
         truncated[indices[i]] += 1
-    return truncated, best_hitrate
+    return truncated, best_latency
 
 def find_target(point1, point2, y_value):
     x1, y1 = point1
@@ -345,182 +481,66 @@ def perturb_list_integers_no_same(lst, n_resource, epsilon=6):
     return perturbed
 
 
-class OnlineProfile(ScheduleFrame):
-    def __init__(self, all_apps: List[str], 
-                 n_resources: List[int]):
-        super().__init__()
-        self.all_apps = all_apps
-        self.num_apps = len(all_apps)
-
-        # cache可以分0，但cpu和bandwidth不可，此处统一arm的数量，生成分配方案时再进行限制，
-        assert len(n_resources) == 3, "The dimension of resources should be 3"
-        self.cpu_n_arms = n_resources[1] + 1
-        self.bandwidth_n_arms = n_resources[2] + 1
-        
-        # 采样相关
-        self.times = 0
-
-        # # 负载变化相关，未更新
-        self.history_reward_window = 4
-        self.history_reward = []
-        
-        # 针对cache资源的单独判定
-        self.cache_mode = True
-        self.cache_perturbed = None
-        self.n_cache = n_resources[0]
-        self.n_bandwidth = n_resources[2]
-        self.cache_history_arm = []
-        self.cache_hitrate = []
-        self.estimate = []
-
-        self.new_arm = []
-        return
-
-    def select_arm(self):
-        return self.new_arm
-
-    def cpu_perturb(self):
-        '''对CPU核心分配进行扰动，方法是将当前分配核心数目>2的任务分配1，多出来的核随机分配给其他任务'''
-        
-    def update(self, reward, chosen_arm):
-        """
-        目前是只扰动了Cache
-        TODO:
-            chosen_arm 调整为长度为3的list, 每个元素为一个dict, 对应该资源在每个任务上的分配
-            reward 调整为一个长度为3的list, [0]为延迟对应的reward值, [1]为dict, 每个任务对应的cpu利用率，[2]为dict，每个任务对应的cache命中率
-        """
-        self.new_arm = []
-        # 动态负载变化监测
-        if not self.cache_mode:
-            if len(self.history_reward) < self.history_reward_window:
-                self.history_reward.append(sum(map(float, reward[2].values())))
-            else:
-                half_window = self.history_reward_window // 2
-                first_half = self.history_reward[:half_window]
-                second_half = self.history_reward[half_window:]
-                first_aver = sum(first_half) / len(first_half)
-                second_aver = sum(second_half) / len(second_half)
-                print('{} --> {},  {}'.format(first_aver, second_aver, abs(second_aver - first_aver) / first_aver))
-                if (first_aver - second_aver) / first_aver > 0.10:
-                    # workload change
-                    print('----- test workload change -----')
-                    self.reset()
-                else:
-                    self.history_reward.pop(0)
-
-        # 调整缓存资源
-        if self.cache_mode:
-            # 针对cache资源的单独处理
-            cache_arm = list(chosen_arm[0].values())
-            cpu_arm = list(chosen_arm[1].values())
-            bw_arm = list(chosen_arm[2].values())
-            if self.times == 0:
-                #TODO:记录第一次的cache信息，并进行扰动
-                self.cache_perturbed = perturb_list_integers_no_same(cache_arm, self.n_cache)
-                self.cache_history_arm.append(cache_arm)
-                self.cache_hitrate.append(reward[2])
-                self.bw_pertubed = perturb_list_integers_no_same(bw_arm, self.n_bandwidth, epsilon = 3)
-                self.new_arm = [self.cache_perturbed, self.bw_pertubed, list(chosen_arm[2].values())]
-            elif self.times == 1:
-                #TODO:记录第二次的信息，并进行动态规划求解
-                self.cache_history_arm.append(cache_arm)
-                self.cache_hitrate.append(reward[2])
-                # 通过动态规划直接求解应划分的缓存大小, 保存在self.estimate
-                print('history_arm: ', str(self.cache_history_arm))
-                print('hitrate: ', str(self.cache_hitrate))
-                self.cache_mode = False
-        self.times += 1
-
-
-    def get_now_reward(self, performance, context_info=None):
-        # update the context
-        # tmp = [list(row) for row in zip_longest(*context_info, fillvalue=None)]
-        # sum_context = np.zeros(self.n_features)
-        # for i, app in enumerate(self.all_apps):
-        #     self.context[app] = tmp[i]
-        #     sum_context += np.array(self.context[app])
-        # for app in self.all_apps:
-        #     self.other_context[app] = list((sum_context - np.array(self.context[app])) / (len(self.all_apps) - 1))
-
-        # calculate the reward for hitrate etc bigger is greater
-        # th_reward = sum(float(x) for x in performance) / len(performance)
-        # return th_reward
-
-        # smaller is greater
-        aver_latency = sum(float(x) for x in performance) / len(performance)
-        th_reward = 500 / aver_latency
-        return th_reward, aver_latency
-
-    def reset(self):
-
-        # 采样相关
-        self.times = 0
-
-        # # 负载变化相关，未更新
-        self.history_reward = []
-       
-        # 针对cache资源的单独判定
-        self.cache_mode = True
-        self.cache_perturbed = None
-        self.cache_history_arm = []
-        self.cache_hitrate = []
-        self.estimate = []
-
-
-    def save_to_pickle(self, filename):
-        '''将当前模型保存'''
-        with open(filename, 'wb') as f:
-            pickle.dump(self, f)
-
-    @staticmethod
-    def load_from_pickle(filename):
-        with open(filename, 'rb') as f:
-            return pickle.load(f)
-
 
 if __name__ == '__main__':
-    point1=[[16, 16, 16, 16, 16, 16, 16, 16, 16, 16],[0.0001 , 0.8601,  0.2398,  0.4711,  0.29215,   0.26915,  0.7311,  0,        0.5329,  0.2957]]
-    point2=[[20, 20, 10, 21, 12, 14, 17, 9,  17, 20],[0,       0.9324,  0.0447,  0.7632,  0.297075,  0.1392,   0.7185,  0,        0.7132,  0.3795]]
-    state, features = do_simulation(point1, point2)
-    curr_hitrate = get_curr_avg_hitrate(point2[0], features)
-    task_num = len(point2[0])
-    total_cache = sum(point1[0])
-    print('当前命中率 : ', curr_hitrate, ' 任务数目 : ', task_num, ' 总cache资源量 : ', total_cache)
-    model_path = './train_dir/num_task_10_20241128_120715/model_T10_I295.pt'
-    state_dict = torch.load(model_path, weights_only=True)
-    agent = Agent()
-    agent.model.load_state_dict(state_dict)
-    action_probs = agent.get_action(state)
-    print('agent choose action_probs: ', action_probs * 160)
-    curr_hitrate = get_curr_avg_hitrate(action_probs * 160, features)
-    print('action决策预测命中率 ： ',curr_hitrate)
-    s = time.process_time()
-    best_cache_solution, best_hitrate = simulated_annealing2( len(point1[0]), 160,
-                                                            get_curr_avg_hitrate, 
-                                                            x0=action_probs * 160,
-                                                            features=features,
-                                                            T_max=100, T_min=1e-3, L=30,
-                                                            max_stay_counter=10, 
-                                                            precision=0.5,
-                                                            cooling_rate=0.95,lb=2,
-                                                            ub=sum(point1[0]),
-                                                            change_precision=10
-                                                          )
-    print("模拟退火算法耗时: ",time.process_time()-s)
-    print(f'best cache solution: {best_cache_solution},\n best avg hitrate: {best_hitrate}')
-    print("***********************")
-    # curr_hitrate = get_curr_avg_hitrate(point2[0], workload_features)
-    # task_num = len(point2[0])
-    # total_cache = sum(point1[0])
-    # print('当前命中率 : ', curr_hitrate, ' 任务数目 : ', task_num, ' 总cache资源量 : ', total_cache)
+    # apps = ['leveldb_1', 'leveldb_2','leveldb_3','leveldb_4','leveldb_5',
+    #          'mongodb_1', 'mongodb_2','mongodb_3','mongodb_4','mongodb_5',
+    #          'tmdb_1', 'tmdb_2','tmdb_3', 'tmdb_4','tmdb_5',
+    #          'mysql_1', 'mysql_2','mysql_3', 'mysql_4','mysql_5', 
+    #          'sqlite_1', 'sqlite_2','sqlite_3', 'sqlite_4','sqlite_5']
+    # cache_state,cache_features, bandwidth_state, bandwidth_features, cpu_allocation = MapTaskNameToLines(apps, 1,total_cache_num=len(apps) * 16, 
+    #                                                                                      total_cpu_num=33,
+    #                                                                                      total_bw_num=len(apps) * 20)
+    # cache_model_path = '/home/md/SHMCachelib/schedule/ReinforcementLearning/train_dir/Cache_num_task_10_20241207_184235/model_T10_I126.pt'
+    # bandwidth_model_path = '/home/md/SHMCachelib/schedule/ReinforcementLearning/train_dir/BandWidth_num_task_10_20241208_153300/model_T15_I294.pt'
+    # cache_state_dict = torch.load(cache_model_path, weights_only=True)
+    # bandwidth_state_dict = torch.load(bandwidth_model_path, weights_only=True)
+    # cache_agent = Agent()
+    # bandwith_agent = Agent()
+    # cache_agent.model.load_state_dict(cache_state_dict)
+    # bandwith_agent.model.load_state_dict(bandwidth_state_dict)
+    # cache_action_probs = cache_agent.get_action(cache_state)
+    # bandwidth_action_probs = bandwith_agent.get_action(bandwidth_state)
+    # print("强化学习算法决策cache分配为: ", str(cache_action_probs * len(apps) * 16))
+    # print("强化学习算法决策带宽分配为: ", str(bandwidth_action_probs * len(apps) * 20))
+    # curr_hitrate = get_curr_avg_hitrate(cache_action_probs * len(apps) * 16, cache_features)
+    # curr_latency = get_curr_avg_latency(bandwidth_action_probs * len(apps) * 20, bandwidth_features)
+    # print('action决策预测平均命中率 ： ',curr_hitrate)
+    # print('action决策预测平均延迟 ： ',curr_latency)
+    
     # s = time.process_time()
-    # best_solution, best_hitrate = simulated_annealing2(task_num, total_cache, get_curr_avg_hitrate, 
-    #                                                    x0=point1[0],features=workload_features,
-    #                                                    T_max=100, T_min=1e-3, L=150, max_stay_counter=200, precision=0.5,
-    #                                                     cooling_rate=0.95,lb=2,ub=total_cache,change_precision=10
-    #                                                     )
+    # # 3. 模拟退火算法对cache分配和bandwidth分配进行优化
+    # best_cache_solution, best_hitrate = cache_simulated_annealing( len(apps), 
+    #                                                          len(apps) * 16,
+    #                                                         get_curr_avg_hitrate, 
+    #                                                         x0 = cache_action_probs * len(apps) * 16,
+    #                                                         features=cache_features,
+    #                                                         T_max=100, T_min=1e-3, 
+    #                                                         L=30, 
+    #                                                         max_stay_counter=10, 
+    #                                                         precision=0.5,
+    #                                                         cooling_rate=0.95,
+    #                                                         lb=2,
+    #                                                         ub= len(apps) * 16,
+    #                                                         change_precision=10
+    #                                                         )
+    # best_bandwidth_solution, best_latency = bandwidth_simulated_annealing( len(apps), 
+    #                                                          len(apps) * 20,
+    #                                                         get_curr_avg_latency, 
+    #                                                         x0 = bandwidth_action_probs * len(apps) * 20,
+    #                                                         features=bandwidth_features,
+    #                                                         T_max=100, T_min=1e-3, 
+    #                                                         L=30, 
+    #                                                         max_stay_counter=10, 
+    #                                                         precision=0.5,
+    #                                                         cooling_rate=0.95,
+    #                                                         lb = 5,
+    #                                                         ub= len(apps) * 20,
+    #                                                         change_precision=10
+    #                                                         )
+    # print(f'best cache solution: {best_cache_solution},\n best avg hitrate: {best_hitrate}')
+    # print(f'best bandwidth solution: {best_bandwidth_solution},\n best avg latency: {best_latency}')
     # print("模拟退火算法耗时: ",time.process_time()-s)
-    # print("最佳缓存分配：", best_solution, "最佳命中率：", best_hitrate, "命中提升幅度：", (best_hitrate - curr_hitrate) / curr_hitrate)
     # print("***********************")
-    # point3=[[20, 20, 10, 21, 12, 14, 17, 9,  17, 20],[0.385,   0,       0.8063,  0.0508,  0.804575,  0.2685,   0,       0.63,     0,       0.724]]
-    # point4=[[18, 18, 12, 24, 16, 9,  18, 14, 16, 15],[0.3415,  0,       0.8841,  0.0003, 0.82305,   0.17145,  0,       0.6912,   0,       0.5854]]
+    total_cache = [2, 26, 1, 2, 25, 2, 20, 22, 2, 25, 29, 32, 26, 24, 26, 3, 25, 32, 3, 22, 2, 23, 2, 1, 23]
+    print(sum(total_cache))

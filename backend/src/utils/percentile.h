@@ -40,8 +40,15 @@ inline T average(const std::vector<T>& latencies)
     return average_latency/latencies.size();
 }
 
+/**
+ * @brief 计算延时数据集内平均延时与99.9%尾延时
+ * 
+ * @param latencies 批次内所有请求的完成延时 
+ * @param average_latency 待计算的平均延时
+ * @return p99_latency 待计算的99.9%尾延时
+ */
 template <typename T>
-void average_and_percentile(const std::vector<T>& latencies, T* average_latency, T* p99_latency)
+void average_and_percentile(const std::vector<T>& latencies, T* average_latency, T* p999_latency)
 {
     std::vector<T> top_elements;
     const size_t max_size = latencies.size() * 0.001 + 1;
@@ -79,7 +86,7 @@ void average_and_percentile(const std::vector<T>& latencies, T* average_latency,
         }
     }
     *average_latency = average_latency_/latencies.size();
-    *p99_latency = top_elements.back();
+    *p999_latency = top_elements.back();
 
     return;
 }

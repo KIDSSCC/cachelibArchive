@@ -3,7 +3,7 @@
 #include <memory>
 using namespace std;
 
-#define UNIFIED_CACHE_POOL "sqlite_4"
+#define UNIFIED_CACHE_POOL "tmdb_5"
 
 // Generator{distribution, {skew, ...}, workingset_size, querys}
 // Backend {TmdbBackend, MySQLBackend, MongoDBBackend, LevelDBBackend, SQLiteBackend}
@@ -16,18 +16,18 @@ using namespace std;
 // };
 
 #define WORKLOAD_TYPE                          \
-        std::make_shared<Generator>(D_SEQUENTIAL, 1680000, vector<double>{}),         \
-        std::make_shared<Generator>(D_HOTSPOT, 105000, vector<double>{0.4, 0.9}),         \
-        std::make_shared<Generator>(D_SEQUENTIAL, 1680000, vector<double>{}),     
+        std::make_shared<Generator>(D_HOTSPOT, 315000, vector<double>{0.4, 0.8}),         \
+        std::make_shared<Generator>(D_SEQUENTIAL, 3360000, vector<double>{}),         \
+        std::make_shared<Generator>(D_ZIPFIAN, 210000, vector<double>{0.8}),     
     
 
 
 // kind of backend
-#define BACKEND SQLiteBackend
+#define BACKEND TmdbBackend
 
-#define MAX_RECORDS 1680000 // number of records in the database
+#define MAX_RECORDS 3360000 // number of records in the database
 #define MAX_FIELDS 1 // number of fields in each record
-#define MAX_FIELD_SIZE 10000 // size of each field (in chars)
+#define MAX_FIELD_SIZE 5000 // size of each field (in chars)
 #define MAX_QUERIES 20000
 #define QUERY_PROPORTION 1 // proportion of read queries, the rest are insert queries
 #define OUTPUT std::cout

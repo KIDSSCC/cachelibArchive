@@ -23,7 +23,7 @@
 
 #define WARMTIME 300
 #define RUNTIME 600
-#define PRECHANGE 30
+#define PRECHANGE 0
 
 bool cache_enabled = false;
 bool do_prepare = true;
@@ -105,7 +105,9 @@ int main(int argc, char* argv[]){
     std::vector<std::shared_ptr<Generator>> generators = {
         WORKLOAD_TYPE
     };
-    generators.emplace(generators.begin(), std::make_shared<Generator>(D_UNIFORM, MAX_RECORDS * 0.2, std::vector<double>{}));  
+
+    // generators.emplace(generators.begin(), std::make_shared<Generator>(D_UNIFORM, MAX_RECORDS * 0.2, std::vector<double>{}));
+    generators.emplace(generators.begin(), generators[0]);
 
     atomic<double> total_throughput(0.0);
     atomic<double> total_usedtime(0.0);
@@ -178,16 +180,22 @@ int main(int argc, char* argv[]){
                 // aggregate the results
                 total_throughput = total_throughput + throughput;
                 total_usedtime = total_usedtime + benchmark.millis_elapsed;
-                total_hit_count += backend.hit_count;
-                total_records_executed += benchmark.records_executed;
+
                 if(generator_idx != 0)
                 {
+                    total_hit_count += backend.hit_count;
+                    total_records_executed += benchmark.records_executed;
                     // 替换为无锁结构
                     for(size_t idx = 0; idx < benchmark.latencies_ns.size();idx++)
                     {
                         total_latencies[idx + currentMaxQueries * i] = benchmark.latencies_ns[idx];
                     }
+                }else{
+                    // generator_idx == 0，当前warmup阶段,命中率标识为2
+                    total_hit_count = 2;
+                    total_records_executed = 1; 
                 }
+                // std::cout<<"finish record: "<<benchmark.records_executed<<" used time: "<<(double) benchmark.millis_elapsed / 1000<<std::endl;
             });
         }
         for (auto& thread : threads) {
@@ -197,10 +205,6 @@ int main(int argc, char* argv[]){
         BACKEND backend(0);
         backend.clean_up();
 
-        // auto query_finish = std::chrono::system_clock::now();
-        // outx << "query finish time is: " << std::chrono::duration_cast<std::chrono::seconds>(query_finish - specific_time_point).count() << std::endl;
-        // outy << "query finish time is: " << std::chrono::duration_cast<std::chrono::seconds>(query_finish - specific_time_point).count() << std::endl;
-
         // 统计数据汇总
         unsigned int average_percentile = 0;
         unsigned int total_percentile_99 = 0;
@@ -208,9 +212,10 @@ int main(int argc, char* argv[]){
         double total_hitrate = (double) total_hit_count / (double) total_records_executed;
         total_usedtime = total_usedtime/num_threads;
 
-        // auto calculate_finish = std::chrono::system_clock::now();
-        // outx << "calculate finish time is: " << std::chrono::duration_cast<std::chrono::seconds>(calculate_finish - specific_time_point).count() << std::endl;
-        // outy << "calculate finish time is: " << std::chrono::duration_cast<std::chrono::seconds>(calculate_finish - specific_time_point).count() << std::endl;
+        if(total_percentile_99 == 0){
+            total_percentile_99 = 1000;
+            average_percentile = 1000;
+        }
 
         // 输出完整元日志
         if (!profile_file.empty()) {
@@ -262,8 +267,12 @@ int main(int argc, char* argv[]){
 
         // 预留30s时间进行负载变化
         if(duration >= threshold - PRECHANGE) {
+            // if(generator_idx == 2)
+            //     break;
             threshold = RUNTIME;
             start_time = std::chrono::system_clock::now();
+            // std::ofstream outx(profile_file + "_subItem.log", std::ios::app);
+            // std::ofstream outy(profile_file + "_subItem2.log", std::ios::app);
             // outx << "workload change, duration is:" << duration << " seconds, next phase is: " << threshold<< std::endl;
             // outy << "workload change, duration is:" << duration << " seconds, next phase is: " << threshold<< std::endl;
             generator_idx++;
@@ -274,6 +283,7 @@ int main(int argc, char* argv[]){
             if(generator_idx >= (int)generators.size() && !final_eof){
                 // 标识目前已经进入最后一轮
                 generator_idx = generators.size() - 1;
+                threshold = 30;
                 final_eof = true;
             }
         }

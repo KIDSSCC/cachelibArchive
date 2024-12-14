@@ -13,9 +13,9 @@ bool create_default_pool = false;
 size_t defaultPoolSize = CACHE_SIZE;
 
 
-NavyConfig getNvmConfig(const std::string& cacheDir){
+NavyConfig getNvmConfig(const std::string& cacheDir, size_t nvm_size){
 	NavyConfig config{};
-	config.setSimpleFile(cacheDir + "/navy", 6 * 1024ULL * 1024ULL * 1024ULL);
+	config.setSimpleFile(cacheDir + "/navy",nvm_size);
 	config.setBlockSize(4096);
 	config.setDeviceMetadataSize(4 * 1024 * 1024);
 	config.setNavyReqOrderingShards(10);
@@ -27,7 +27,7 @@ NavyConfig getNvmConfig(const std::string& cacheDir){
 	return config;
 }
 
-void cacheConfigure(CacheConfig& config)
+void cacheConfigure(CacheConfig& config, size_t nvm_size)
 {
     config.setCacheSize(cacheSize);  
     config.setCacheName("Cachelib Cache");
@@ -38,10 +38,10 @@ void cacheConfigure(CacheConfig& config)
 
     //nvm config
     #if HYBRID_CACHE
-    std::string cacheDir_ = folly::sformat("/SSDPath/nvmcache");
+    std::string cacheDir_ = folly::sformat("/SSD/nvmecache");
     cachelib::util::makeDir(cacheDir_);
     Cache::NvmCacheConfig nvmConfig;
-    nvmConfig.navyConfig = getNvmConfig(cacheDir_);
+    nvmConfig.navyConfig = getNvmConfig(cacheDir_, nvm_size);
         config.enableNvmCache(nvmConfig);
     #endif
     config.validate();   
@@ -52,11 +52,19 @@ void initializeCache(int cache_size, int pool_size, int default_pool)
     cacheSize = cache_size<0?cacheSize:((size_t)cache_size * MB_SIZE + REDUNDARY_SIZE);
     poolSize = pool_size<0?poolSize:(size_t)pool_size * MB_SIZE;
     create_default_pool = default_pool || CREATE_DEFAULT_POOL;
+    // 考量SSD混合缓存的大小
+    size_t nvm_size = (cacheSize - REDUNDARY_SIZE) / 2;
+    if(nvm_size > (size_t)2 * GB_SIZE)
+        nvm_size = (size_t)2 * GB_SIZE;
     XLOG(INFO) << "---------- CacheLib Info ----------";
     XLOG(INFO) << "Cache Size is: " << cacheSize / MB_SIZE << " MB";
     XLOG(INFO) << "Each Pool Size is: " << poolSize / MB_SIZE << " MB";
+    #if HYBRID_CACHE
+        XLOG(INFO) << "NVM Size is: " << nvm_size / MB_SIZE << " MB";
+    #endif
+    
     CacheConfig config;
-    cacheConfigure(config);
+    cacheConfigure(config, nvm_size);
     gCache_ = std::make_unique<Cache>(config);
     if(create_default_pool)
     {

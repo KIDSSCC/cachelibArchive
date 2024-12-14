@@ -73,8 +73,6 @@ class Agent:
         # mean_reward = torch.mean(reward, dim=-1)
         # reward = mean_reward/reward
         # reward = (reward - reward.mean()) / (reward.std() + 1e-9)
-
-
         reward = reward.detach()
         log_action_probs = torch.log(action_prob)
         # 增大奖励大动作概率，即任务分配比例

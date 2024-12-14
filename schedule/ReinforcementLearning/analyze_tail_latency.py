@@ -2,9 +2,9 @@ import matplotlib.pyplot as plt
 import re
 
 # 文件路径
-file_path = '/home/md/SHMCachelib/schedule/ReinforcementLearning/log/20241208_161417/RL_latency_cat.log'
-baseline_filepath = '/home/md/SHMCachelib/schedule/ReinforcementLearning/baseline_latency.log'
-fig_save_path = '/home/md/SHMCachelib/schedule/ReinforcementLearning/log/20241208_161417/Contrast.png'
+file_path = '/home/md/SHMCachelib/schedule/ReinforcementLearning/log/20241212_100056/RL_latency_cat.log'
+baseline_filepath = '/home/md/SHMCachelib/schedule/ReinforcementLearning/log/20241212_100056/baseline_latency.log'
+fig_save_path = '/home/md/SHMCachelib/schedule/ReinforcementLearning/log/20241212_100056/Contrast.png'
 baseline_pattern = r"epoch:(\d+):\s+(\d+\.\d+)"
 # 初始化存储数据的列表
 RL_epochs = []

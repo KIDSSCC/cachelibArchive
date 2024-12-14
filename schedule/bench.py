@@ -3,7 +3,13 @@ import logging
 import time
 import os
 import random
-from util import *
+from tools import *
+import argparse
+
+parser = argparse.ArgumentParser(description="命令行参数解析")
+parser.add_argument('mode', type=int, help='0:baseline;1:schedule')
+parser.add_argument('num_tasks', type=int, help='number of tasks')
+parser.add_argument('rand_seed', type=int, help='random seed')
 
 # 配置日志输出的基本格式和日志级别
 logging.basicConfig(level=logging.INFO)
@@ -11,6 +17,9 @@ logging.basicConfig(level=logging.INFO)
 directory_path  = '/home/md/SHMCachelib/Build'
 passwd = 'k15648611412'
 disk_bandwidth = 1024 * 1024
+
+num_of_workload = 15
+random_seed = 2175
 
 def generate_even_list(n, C):
     # 初步分配，每个元素均为 C // n
@@ -151,25 +160,44 @@ def get_binary(workload_num = 10):
     # # Build目录下获取可执行文件，随机打乱后从中选择5个任务
     bin_files = [[f] for f in os.listdir(directory_path) if f.startswith("bin")]
     mysql_threads = [4, 2, 2, 4, 4]
+    append_cpu = [0, 2, 2, 3, 5, 8]
+
+    random.seed(random_seed)
+    random.shuffle(bin_files)
+    target_workloads = bin_files[:workload_num]
+    # target_workloads = [item for item in bin_files if 'tmdb' in item[0]]
+
+    if workload_num == 5:
+        target_workloads = [
+            ['bin_mongodb_1'],
+            ['bin_tmdb_2'],
+            ['bin_tmdb_5'],
+            ['bin_leveldb_4'],
+            ['bin_mongodb_4']
+        ]
+
     i = 0
-    for index in range(len(bin_files)):
-        bin_files[index].append('--threads')
-        if 'mysql' in bin_files[index][0]:
-            bin_files[index].append(str(mysql_threads[i]))
+    for index in range(len(target_workloads)):
+        target_workloads[index].append('--threads')
+        if 'mysql' in target_workloads[index][0]:
+            target_workloads[index].append(str(mysql_threads[i]))
             i += 1
         else:
-            bin_files[index].append('1')
+            target_workloads[index].append('1')
 
-    random.seed(0)
-    random.shuffle(bin_files)
+    cache_size = 512 * workload_num
+    num_cpu = workload_num + append_cpu[i]
+    num_bandwidth = workload_num * 20
 
-    cache_size = 1024 * workload_num        # 总缓存空间大小
-    target_workloads = bin_files[:workload_num]
+    
     logging.info('----- Target workloads:')
     for item in target_workloads:
         logging.info(item)
+    logging.info('cache is {}'.format(cache_size // 32))
+    logging.info('cpu is {}'.format(num_cpu))
+    logging.info('bandwidth is {}'.format(num_bandwidth))
     logging.info('----- Target workloads End')
-    return target_workloads, cache_size
+    return target_workloads, cache_size, num_cpu, num_bandwidth
 
 def operation(args):
     process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -251,7 +279,7 @@ def warmup(target_workloads):
     logging.info('----- Warmup Time: {}'.format(end_time - start_time))
     logging.info('----- Warmup Done')
 
-def run(target_workloads):
+def run(target_workloads, num_cpu, num_bandwidth):
     logging.info('----- Begin To Run')
     start_time = time.time()
     procs = []
@@ -261,8 +289,8 @@ def run(target_workloads):
         tmp[-1] = tmp[-1] + wl[0]
         procs.append(operation(tmp))
     pids = get_pid(target_workloads)
-    set_cpu_cores(pids, generate_even_list(len(target_workloads), 12))
-    set_bandwidth(pids, generate_even_list(len(target_workloads), 50))
+    set_cpu_cores(pids, generate_even_list(len(target_workloads), num_cpu))
+    set_bandwidth(pids, generate_even_list(len(target_workloads), num_bandwidth))
 
     for index, p in enumerate(procs):
         logging.info('Waiting {}'.format(target_workloads[index][0]))
@@ -271,20 +299,20 @@ def run(target_workloads):
     logging.info('----- Run Time: {}'.format(end_time - start_time))
     logging.info('----- Run Done')
 
-def warmup_and_run(target_workloads):
+def warmup_and_run(target_workloads, num_cpu, num_bandwidth):
     logging.info('----- Begin To Warmup And Run')
     start_time = time.time()
     procs = []
     for wl in target_workloads:
         # 5000 : 跑5000个query输出一次日志
-        tmp = [os.path.join(directory_path, wl[0]), '--cache', '--run', '1', '--maxquery', '5000', wl[1], wl[2]]
+        tmp = [os.path.join(directory_path, wl[0]), '--cache', '--run', '1', '--maxquery', '10000', wl[1], wl[2]]
         tmp.extend(['--loginfo', '0', '--profile', 'log/'])
         tmp[-1] = tmp[-1] + wl[0]
         procs.append(operation(tmp))
     pids = get_pid(target_workloads)
     #TODO:将所有的进程绑定在相同的cpu核心和同一个带宽组里
-    set_cpu_cores(pids, 12)
-    set_bandwidth(pids, 50)
+    set_cpu_cores(pids, num_cpu)
+    set_bandwidth(pids, num_bandwidth)
     for index, p in enumerate(procs):
         logging.info('Waiting {}'.format(target_workloads[index][0]))
         stdout, stderr = p.communicate()
@@ -293,27 +321,33 @@ def warmup_and_run(target_workloads):
     logging.info('----- Run Done')
 
 if __name__ == '__main__':
+    args = parser.parse_args()
+    num_of_workload = args.num_tasks
+    random_seed     = args.rand_seed
+
     clear_groups()
-    target_workloads, cache_size = get_binary(10)
+    target_workloads, cache_size, num_cpu, num_bandwidth = get_binary(num_of_workload)
     
     # prepare阶段
     # prepare_phase(target_workloads)
-    # 启动cache server, pool_size 256, size_conv = 64
-    # 每个任务初始有512M，32个单位一划分 args[2]=0时生效
-    # cache_size=1024
-    server_process, ret_code = cache_server(cache_size, 1024, 0, 64)
-    if ret_code is not None:
-        logging.error('----- Cache Server Failed')
-        exit(1)
-    run(target_workloads)
-    close_server()
-    server_process.communicate()
 
-    # 针对baseline的测试 -> 当args[2]为1时表示混部不分区，此时args[1]无用
-    # server_process, ret_code = cache_server(cache_size, 1024, 1, 64)
-    # if ret_code is not None:
-    #     logging.error('----- Cache Server Failed')
-    #     exit(1)
-    # warmup_and_run(target_workloads)
-    # close_server()
-    # server_process.communicate()
+    if args.mode==1:
+        # 启动cache server, pool_size 256, size_conv = 64
+        # 每个任务初始有512M，32个单位一划分 args[2]=0时生效
+        # cache_size=1024
+        server_process, ret_code = cache_server(cache_size, 512, 0, 32)
+        if ret_code is not None:
+            logging.error('----- Cache Server Failed')
+            exit(1)
+        run(target_workloads, num_cpu, num_bandwidth)
+        close_server()
+        server_process.communicate()
+    else:
+        # 针对baseline的测试 -> 当args[2]为1时表示混部不分区，此时args[1]无用
+        server_process, ret_code = cache_server(cache_size, 1024, 1, 32)
+        if ret_code is not None:
+            logging.error('----- Cache Server Failed')
+            exit(1)
+        warmup_and_run(target_workloads, num_cpu, num_bandwidth)
+        close_server()
+        server_process.communicate()

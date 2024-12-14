@@ -252,58 +252,49 @@ def cache_simulated_annealing(NUM_TASK, TOTAL_CACHE, func, x0, features, T_max, 
     :param change_precision: 邻域生成算子的调整精度
     :return:
     '''
-    # current_solution = x0  # 当前解
-    # current_hitrate = func(current_solution, features)  # 当前解的命中率
-    # best_solution = current_solution  # 最优解
-    # best_hitrate = current_hitrate  # 最优解的综合命中率
+    current_solution = x0  # 当前解
+    current_hitrate = func(current_solution, features)  # 当前解的命中率
+    best_solution = current_solution  # 最优解
+    best_hitrate = current_hitrate  # 最优解的综合命中率
 
-    # temperature = T_max  # 初始温度
-    # flag_reach_min_temp =False
-    # stay_counter = 0  # 记录连续迭代中最优解未改变的次数
+    temperature = T_max  # 初始温度
+    flag_reach_min_temp =False
+    stay_counter = 0  # 记录连续迭代中最优解未改变的次数
 
-    # while(True):
-    #     for i in range(L):
-    #         new_solution = get_neighbor(NUM_TASK, TOTAL_CACHE, current_solution,lb,ub,change_precision)  # 生成邻居解
-    #         new_hitrate = func(new_solution, features)  # 邻居解的延迟
-    #         delta_hitrate = new_hitrate - current_hitrate  # 延迟变化量
-    #         # 判断是否接受邻居解
-    #         if delta_hitrate > 0 :
-    #             current_solution = new_solution
-    #             current_hitrate = new_hitrate
-    #             best_solution = current_solution
-    #             best_hitrate = current_hitrate
-    #             # 到达最低温，新解有一定的下降，若下降精度小于precision
-    #             if flag_reach_min_temp :
-    #                 if abs(delta_hitrate) < precision:
-    #                     stay_counter += 1
-    #                 else:
-    #                     stay_counter = 0
-    #             continue
-    #         elif torch.exp(delta_hitrate / temperature) > torch.rand(1) :
-    #             current_solution = new_solution
-    #             current_hitrate = new_hitrate
-    #             if flag_reach_min_temp:
-    #                 stay_counter += 1
-    #             continue
-    #         if flag_reach_min_temp:
-    #             stay_counter += 1
-    #     if temperature > T_min:
-    #         temperature = temperature * cooling_rate  # 降低温度
-    #     else:
-    #         flag_reach_min_temp = True
-    #     # 检查是否达到最低温度和连续迭代中最优解未改变的次数
-    #     if flag_reach_min_temp and stay_counter >= max_stay_counter:
-    #         break
-    # best_solution = best_solution.tolist()
-    # truncated = [int(k) for k in best_solution]
-    # differences = [x - t for x, t in zip(best_solution, truncated)]
-    # total_difference = round(sum(best_solution) - sum(truncated))
-    # indices = sorted(range(len(differences)), key=lambda i: -differences[i])
-    # for i in range(total_difference):
-    #     truncated[indices[i]] += 1
-    # return truncated, best_hitrate
-    best_solution = x0.tolist()
-    best_hitrate = func(x0, features)
+    while(True):
+        for i in range(L):
+            new_solution = get_neighbor(NUM_TASK, TOTAL_CACHE, current_solution,lb,ub,change_precision)  # 生成邻居解
+            new_hitrate = func(new_solution, features)  # 邻居解的延迟
+            delta_hitrate = new_hitrate - current_hitrate  # 延迟变化量
+            # 判断是否接受邻居解
+            if delta_hitrate > 0 :
+                current_solution = new_solution
+                current_hitrate = new_hitrate
+                best_solution = current_solution
+                best_hitrate = current_hitrate
+                # 到达最低温，新解有一定的下降，若下降精度小于precision
+                if flag_reach_min_temp :
+                    if abs(delta_hitrate) < precision:
+                        stay_counter += 1
+                    else:
+                        stay_counter = 0
+                continue
+            elif torch.exp(delta_hitrate / temperature) > torch.rand(1) :
+                current_solution = new_solution
+                current_hitrate = new_hitrate
+                if flag_reach_min_temp:
+                    stay_counter += 1
+                continue
+            if flag_reach_min_temp:
+                stay_counter += 1
+        if temperature > T_min:
+            temperature = temperature * cooling_rate  # 降低温度
+        else:
+            flag_reach_min_temp = True
+        # 检查是否达到最低温度和连续迭代中最优解未改变的次数
+        if flag_reach_min_temp and stay_counter >= max_stay_counter:
+            break
+    best_solution = best_solution.tolist()
     truncated = [int(k) for k in best_solution]
     differences = [x - t for x, t in zip(best_solution, truncated)]
     total_difference = round(sum(best_solution) - sum(truncated))
@@ -311,6 +302,15 @@ def cache_simulated_annealing(NUM_TASK, TOTAL_CACHE, func, x0, features, T_max, 
     for i in range(total_difference):
         truncated[indices[i]] += 1
     return truncated, best_hitrate
+    # best_solution = x0.tolist()
+    # best_hitrate = func(x0, features)
+    # truncated = [int(k) for k in best_solution]
+    # differences = [x - t for x, t in zip(best_solution, truncated)]
+    # total_difference = round(sum(best_solution) - sum(truncated))
+    # indices = sorted(range(len(differences)), key=lambda i: -differences[i])
+    # for i in range(total_difference):
+    #     truncated[indices[i]] += 1
+    # return truncated, best_hitrate
 
 def bandwidth_simulated_annealing(NUM_TASK, TOTAL_BANDWIDTH, func, x0, features, T_max, T_min, L, max_stay_counter, cooling_rate, precision, lb, ub, change_precision):
     '''模拟退火算法

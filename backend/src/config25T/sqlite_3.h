@@ -3,7 +3,7 @@
 #include <memory>
 using namespace std;
 
-#define UNIFIED_CACHE_POOL "sqlite_4"
+#define UNIFIED_CACHE_POOL "sqlite_3"
 
 // Generator{distribution, {skew, ...}, workingset_size, querys}
 // Backend {TmdbBackend, MySQLBackend, MongoDBBackend, LevelDBBackend, SQLiteBackend}
@@ -16,8 +16,8 @@ using namespace std;
 // };
 
 #define WORKLOAD_TYPE                          \
-        std::make_shared<Generator>(D_SEQUENTIAL, 1680000, vector<double>{}),         \
         std::make_shared<Generator>(D_HOTSPOT, 105000, vector<double>{0.4, 0.9}),         \
+        std::make_shared<Generator>(D_ZIPFIAN, 52500, vector<double>{0.8}),         \
         std::make_shared<Generator>(D_SEQUENTIAL, 1680000, vector<double>{}),     
     
 

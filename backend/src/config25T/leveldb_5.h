@@ -3,7 +3,7 @@
 #include <memory>
 using namespace std;
 
-#define UNIFIED_CACHE_POOL "sqlite_4"
+#define UNIFIED_CACHE_POOL "leveldb_5"
 
 // Generator{distribution, {skew, ...}, workingset_size, querys}
 // Backend {TmdbBackend, MySQLBackend, MongoDBBackend, LevelDBBackend, SQLiteBackend}
@@ -16,14 +16,14 @@ using namespace std;
 // };
 
 #define WORKLOAD_TYPE                          \
+        std::make_shared<Generator>(D_UNIFORM, 210000, vector<double>{}),         \
         std::make_shared<Generator>(D_SEQUENTIAL, 1680000, vector<double>{}),         \
-        std::make_shared<Generator>(D_HOTSPOT, 105000, vector<double>{0.4, 0.9}),         \
-        std::make_shared<Generator>(D_SEQUENTIAL, 1680000, vector<double>{}),     
+        std::make_shared<Generator>(D_HOTSPOT, 105000, vector<double>{0.2, 0.8}),     
     
 
 
 // kind of backend
-#define BACKEND SQLiteBackend
+#define BACKEND LevelDBBackend
 
 #define MAX_RECORDS 1680000 // number of records in the database
 #define MAX_FIELDS 1 // number of fields in each record

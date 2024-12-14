@@ -16,16 +16,16 @@ using namespace std;
 // };
 
 #define WORKLOAD_TYPE                          \
-        std::make_shared<Generator>(D_UNIFORM, 420000, vector<double>{}),         \
-        std::make_shared<Generator>(D_SEQUENTIAL, 1620000, vector<double>{}),         \
-        std::make_shared<Generator>(D_HOTSPOT, 210000, vector<double>{0.2， 0.8}),     
+        std::make_shared<Generator>(D_UNIFORM, 210000, vector<double>{}),         \
+        std::make_shared<Generator>(D_SEQUENTIAL, 1680000, vector<double>{}),         \
+        std::make_shared<Generator>(D_HOTSPOT, 105000, vector<double>{0.2, 0.8}),     
     
 
 
 // kind of backend
-#define BACKEND LevelDBBackend
+#define BACKEND MongoDBBackend
 
-#define MAX_RECORDS 1620000 // number of records in the database
+#define MAX_RECORDS 1680000 // number of records in the database
 #define MAX_FIELDS 1 // number of fields in each record
 #define MAX_FIELD_SIZE 10000 // size of each field (in chars)
 #define MAX_QUERIES 20000

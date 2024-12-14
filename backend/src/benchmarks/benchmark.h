@@ -2,7 +2,6 @@
 
 #include "common.h"
 #include CONFIG_FILE
-// #include "config.h"
 #include "backend/backend.h"
 
 class Benchmark

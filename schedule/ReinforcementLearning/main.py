@@ -52,8 +52,9 @@ def for_RL_learning(file_path):
     for i in range(3):
         logger.info("========== Main thread in Phase %d ==========", i + 1)
         start_time = time.time()
-        time.sleep(10)                      # 等待10s确保进入该阶段
+        time.sleep(5)                      # 等待10s确保进入该阶段
         curr_config = cm.receive_config()   # 获取当前任务及cache分配信息
+        logger.info("当前配置信息为: %s", curr_config)
         curr_performance = curr_config.performance
         # 1. 根据当前任务名称获取对应曲线
         cache_state,cache_features, bandwidth_state, bandwidth_features, cpu_allocation = MapTaskNameToLines(all_app,
@@ -81,8 +82,8 @@ def for_RL_learning(file_path):
                                                                 x0 = cache_action_probs * num_resources[0],
                                                                 features=cache_features,
                                                                 T_max=100, T_min=1e-3, 
-                                                                L=30, 
-                                                                max_stay_counter=10, 
+                                                                L=10, 
+                                                                max_stay_counter=6, 
                                                                 precision=0.5,
                                                                 cooling_rate=0.95,
                                                                 lb=2,
@@ -133,33 +134,12 @@ def default_sample(file_path):
     time.sleep(WARMTIME)         # 等待warmup结束
     epoch = 108                     # 600(RUNTIME) - 60(决策)，5s采样一次尾延迟
     start_time = time.time()
-    tasklist = [
-        'tmdb_1',
-        'tmdb_2',
-        'tmdb_3',
-        'tmdb_4',
-        'tmdb_5',
-        'leveldb_1',
-        'leveldb_2',
-        'leveldb_3',
-        'leveldb_4',
-        'leveldb_5',
-        'mysql_1',
-        'mysql_2',
-        'mysql_3',
-        'mysql_4',
-        'mysql_5',
-        'sqlite_1',
-        'sqlite_2',
-        'sqlite_3',
-        'sqlite_4',
-        'sqlite_5',
-        'mongodb_1',
-        'mongodb_2',
-        'mongodb_3',
-        'mongodb_4',
-        'mongodb_5',
-    ]
+    tasklist = []
+    for root, _, files in os.walk('/home/md/SHMCachelib/log'):
+        for file in files:
+            if file.endswith('subItem.log'):
+                tasklist.append(os.path.join(root, file))
+    logger.info('----- num of task is %d',len(tasklist))
     logger.info('----- sample thread detacts warmup phase finished ------')
     for phase in range(3):
         logger.info(" =========== PHASE %d ===========", phase + 1)
@@ -172,8 +152,7 @@ def default_sample(file_path):
         for i in range(epoch):
             time.sleep(5)          # 每5s计算一次尾延迟
             tail_latency = []
-            log_files = ['/home/md/SHMCachelib/log/bin_' + x + '_subItem.log' for x in tasklist]
-            for log in log_files:
+            for log in tasklist:
                 last_line = None
                 while last_line is None or last_line == '':
                     if last_line is None:
@@ -206,7 +185,7 @@ if __name__ == '__main__':
     # my_thread.join()
 
     if args.mode==0:
-        latency_file_path = './baseline_latency.log'
+        latency_file_path = '/home/md/SHMCachelib/schedule/ReinforcementLearning/log/baseline_latency.log'
         my_thread = threading.Thread(target=default_sample, args=(latency_file_path,))
         my_thread.start()
         my_thread.join()

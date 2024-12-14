@@ -16,18 +16,18 @@ using namespace std;
 // };
 
 #define WORKLOAD_TYPE                          \
-        std::make_shared<Generator>(D_HOTSPOT, 420000, vector<double>{0.4, 0.8}),         \
-        std::make_shared<Generator>(D_SEQUENTIAL, 1620000, vector<double>{}),         \
+        std::make_shared<Generator>(D_HOTSPOT, 315000, vector<double>{0.4, 0.8}),         \
+        std::make_shared<Generator>(D_SEQUENTIAL, 3360000, vector<double>{}),         \
         std::make_shared<Generator>(D_ZIPFIAN, 210000, vector<double>{0.8}),     
     
 
 
 // kind of backend
-#define BACKEND TmdbBackend
+#define BACKEND MongoDBBackend
 
-#define MAX_RECORDS 1620000 // number of records in the database
+#define MAX_RECORDS 3360000 // number of records in the database
 #define MAX_FIELDS 1 // number of fields in each record
-#define MAX_FIELD_SIZE 10000 // size of each field (in chars)
+#define MAX_FIELD_SIZE 5000 // size of each field (in chars)
 #define MAX_QUERIES 20000
 #define QUERY_PROPORTION 1 // proportion of read queries, the rest are insert queries
 #define OUTPUT std::cout

@@ -16,8 +16,8 @@ using namespace std;
 // };
 
 #define WORKLOAD_TYPE                          \
-        std::make_shared<Generator>(D_SEQUENTIAL, 1620000, vector<double>{}),         \
-        std::make_shared<Generator>(D_UNIFORM, 315000, vector<double>{}),         \
+        std::make_shared<Generator>(D_SEQUENTIAL, 3150000, vector<double>{}),         \
+        std::make_shared<Generator>(D_HOTSPOT, 420000, vector<double>{0.4, 0.8}),         \
         std::make_shared<Generator>(D_HOTSPOT, 210000, vector<double>{0.4, 0.8}),     
     
 
@@ -25,7 +25,7 @@ using namespace std;
 // kind of backend
 #define BACKEND LevelDBBackend
 
-#define MAX_RECORDS 1620000 // number of records in the database
+#define MAX_RECORDS 3150000 // number of records in the database
 #define MAX_FIELDS 1 // number of fields in each record
 #define MAX_FIELD_SIZE 10000 // size of each field (in chars)
 #define MAX_QUERIES 20000

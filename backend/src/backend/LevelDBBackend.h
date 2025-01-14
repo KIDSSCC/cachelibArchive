@@ -8,8 +8,7 @@
 #include <vector>
 #include <mutex>
 
-#define BASE_PREFIX "/home/md/workloadData/"
-#define LEVELDB_DIR "/home/md/SHMCachelib/diskdata/leveldb/" UNIFIED_CACHE_POOL
+#define LEVELDB_DIR "/home/cache01/diskdata/leveldb/" UNIFIED_CACHE_POOL
 
 class LevelDBBackend : public Backend {
 private:

@@ -18,7 +18,15 @@
 // for server
 #define MAX_WAIT 1e9
 #define SIZE_CONV ((size_t)64 * 1024 * 1024)   //Unit of cache resize
+#define CACHE_HIT 1
 
-#define CACHE_HIT 0
+// for dcp
+#define DCP_PORT 1412
+
+#include<vector>
+
+#define OTHER_NODE                          \
+        "127.0.0.1:7890"         \
+        "127.0.0.1:7891",           
 
 #endif

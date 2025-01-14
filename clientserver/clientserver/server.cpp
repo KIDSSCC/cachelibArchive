@@ -12,14 +12,14 @@
 #include <fstream>
 #include <unistd.h>
 #include <cstdlib> 
-//for timeval
 #include <sys/time.h>
 //for atomic_flag
 #include <atomic>
 
-#include <cachelibHeader.h>
-#include <config.h>
+#include "cachelibHeader.h"
+#include "config.h"
 #include "shm_util.h"
+#include "dcp.h"
 
 //Command line parameter -p -c -d
 DEFINE_int32(p, -1, "Pool size");
@@ -36,27 +36,38 @@ map<string, pair<int, int>> poolRecord;
 map<string, CacheHitStatistics*> name2CHS;
 size_t size_conv = SIZE_CONV;
 
-double timeval_to_seconds(const timeval& t) {
+Node* dcpNode = nullptr;
+
+// timeval格式转seconds
+double timeval_to_seconds(const timeval& t) 
+{
     return t.tv_sec + t.tv_usec / 1000000.0;
 }
+
+// 计算两个时间点之间的间隔时间
 double getUsedTime(const timeval& st,const timeval& en)
 {
 	double startTime=timeval_to_seconds(st);
 	double endTime=timeval_to_seconds(en);
 	return endTime-startTime;
 }
+
+// 检查当前所有缓存池的大小
 map<string, uint64_t> getCacheStats()
 {
 	map<string, uint64_t> res;
 	set<PoolId> allPool = getPoolIds_();
-	for(const auto& pid:allPool){
+	for(const auto& pid:allPool)
+	{
 		PoolStats currPoolStat = getPoolStat(pid);
 		res[currPoolStat.poolName] = currPoolStat.poolSize / size_conv;
 	}	
 	return res;
 }
 
-void executeNewConfig(string config){
+// 从string类型中解析出新的缓存池划分方案，并执行新的方案
+void executeNewConfig(string config)
+{
 	istringstream iss(config);
 	string line,size;
 	getline(iss, line);
@@ -154,14 +165,22 @@ void sharedMemCtl(string appName, int no, CacheHitStatistics* chs)
                 // get operation 
                 res = get_(getMessage->key, getMessage->value);
 				#if CACHE_HIT
-					while(chs->spinlockForRate.test(memory_order_acquire));
-					chs->totalGet[no]++;
-					if(res){
-						chs->hitGet[no]++;
+					// 如果本地查询miss，通过dcp向远程节点发起请求。
+					if(!res){
+						string key2find(getMessage->key);
+						key2find = "0:" + key2find;
+						string remoteRes = dcpNode->sendMessage(key2find);
+						
+						// 将远程查询的结果拷贝至共享内存区
+						strcpy(getMessage->value, remoteRes.c_str());
 					}
-					chs->spinlockForRate.clear(memory_order_release);
+					// while(chs->spinlockForRate.test(memory_order_acquire));
+					// chs->totalGet[no]++;
+					// if(res){
+					// 	chs->hitGet[no]++;
+					// }
+					// chs->spinlockForRate.clear(memory_order_release);
 				#endif
-                // strcpy(getMessage->value,getValue.c_str());
                 sem_post(semaphore_GetBack);
                 break;
             case SIG_DEL:
@@ -170,14 +189,13 @@ void sharedMemCtl(string appName, int no, CacheHitStatistics* chs)
                 sem_post(semaphore_Server);
 	    	case SIG_CLOSE:
 				sem_post(semaphore_Server);
-
 				available = false;
 				break;
             default:
                 break;
         }
 		#if CACHE_HIT
-		// calculate cache hit rate every 10 seconds
+		// 统计命中信息
 			if(!chs->spinlock.test_and_set(memory_order_acquire)){
 				gettimeofday(&(chs->endTime), NULL);
 				if(getUsedTime(chs->startTime, chs->endTime)>10){
@@ -328,6 +346,10 @@ void listen_addpool()
 
 }
 
+bool getPack(const std::string& param1, char* param2){
+	return get_(param1, param2);
+}
+
 
 int main(int argc, char* argv[])
 {
@@ -348,6 +370,11 @@ int main(int argc, char* argv[])
     
     thread t_listenAddPool(listen_addpool);
     t_listenAddPool.join();
+
+	//分布式通信设置
+	vector<string> other_nodes = {OTHER_NODE};
+	dcpNode = new Node(DCP_PORT, other_nodes, getPack);
+	dcpNode->start();
 
     destroyCache();
 }

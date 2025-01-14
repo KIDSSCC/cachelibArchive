@@ -102,7 +102,6 @@ bool get_(CacheKey key, char getValue[])
         return false;
     }
     memcpy(getValue, reinterpret_cast<const char*>(rh->getMemory()), rh->getSize());
-    // folly::StringPiece data{reinterpret_cast<const char*>(rh->getMemory()), rh->getSize()};
     return true;
 }
 

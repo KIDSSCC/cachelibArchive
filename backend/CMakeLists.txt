@@ -18,14 +18,11 @@ list(APPEND CMAKE_PREFIX_PATH "/usr/local/lib/cmake/leveldb")
 find_package(leveldb REQUIRED)
 find_package(Threads REQUIRED)
 find_package(PkgConfig REQUIRED)
-find_package(SQLite3 REQUIRED)
-pkg_search_module(LIBMONGOCXX REQUIRED libmongocxx)
 
 # 检索配置文件列表
-file(GLOB CONFIG_FILE "${CMAKE_CURRENT_LIST_DIR}/src/config25/*.h")
+file(GLOB CONFIG_FILE "${CMAKE_CURRENT_LIST_DIR}/src/config/*.h")
 # Set include directories using target_include_directories
 file(GLOB_RECURSE SOURCES ${CMAKE_CURRENT_LIST_DIR}/src/*.cpp)
-file(GLOB_RECURSE EXCLUDED_SOURCES ${CMAKE_CURRENT_LIST_DIR}/src/config_backup/*.h)
 
 # 根据配置文件列表依次进行编译
 foreach(CONFIG_ ${CONFIG_FILE})
@@ -47,11 +44,8 @@ foreach(CONFIG_ ${CONFIG_FILE})
 
     # 链接库
     target_link_libraries("${TARGET_BIN}" PRIVATE
-        mysqlcppconn
         leveldb::leveldb
-        ${LIBMONGOCXX_LIBRARIES}
         Threads::Threads
-        SQLite::SQLite3
         tmdb
         ClientAPI
     )

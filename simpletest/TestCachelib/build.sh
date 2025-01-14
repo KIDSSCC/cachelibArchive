@@ -31,8 +31,8 @@ PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig:$PREFIX/lib64/pkgconfig:${PKG_CONFIG_PATH
 export PKG_CONFIG_PATH
 LD_LIBRARY_PATH="$PREFIX/lib:$PREFIX/lib64:${LD_LIBRARY_PATH:-}"
 
-rm -rf build
-mkdir -p build
-cd build
+rm -rf Build
+mkdir -p Build
+cd Build
 cmake $CMAKE_PARAMS ..
 make -j

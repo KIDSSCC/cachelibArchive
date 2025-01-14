@@ -2,7 +2,7 @@
 set -e
 
 # Root directory for the CacheLib project
-CLBASE="/home/md/CacheLib"
+CLBASE="/home/cache01/CacheLib"
 
 # Additional "FindXXX.cmake" files are here (e.g. FindSodium.cmake)
 CLCMAKE="$CLBASE/cachelib/cmake"
@@ -20,17 +20,12 @@ LD_LIBRARY_PATH="$PREFIX/lib:$PREFIX/lib64:${LD_LIBRARY_PATH:-}"
 export LD_LIBRARY_PATH
 
 rm -rf Build
-# rm -rf *.tdb
-# rm -rf *.tdi
-rm -rf *.res
-rm -rf *.log
 rm -rf log/*
 rm -rf /dev/shm/*
-rm -rf /SSDPath/nvmcache/*
 mkdir -p Build
 cd Build
 cmake $CMAKE_PARAMS ..
-make -j 16
+make -j
 
 clear
 echo "project construction completed"

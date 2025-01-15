@@ -93,8 +93,9 @@ private:
             string receivedMessage(buffer);
             if(buffer[0]=='0'){
                 // 收到其他节点发送的查询请求
-                string response = "Here is server node at " + to_string(port);
-                ssize_t sent_len = sendto(recv_sockfd, response.c_str(), response.length(), 0,
+                char getBuffer[1024];
+                getFunc(receivedMessage, getBuffer);
+                ssize_t sent_len = sendto(recv_sockfd, getBuffer, strlen(getBuffer), 0,
                                     (struct sockaddr*)&sender_addr, addr_len);
                 if (sent_len < 0) {
                     perror("Error sending response");

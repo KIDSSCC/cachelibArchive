@@ -20,7 +20,7 @@ void DynamicBenchmark::init(std::shared_ptr<Generator>& generator, unsigned int 
                     ^ (hashed_id + 0x9e3779b9
                     + (static_cast<size_t>(std::time(0)) << 6)
                     + (static_cast<size_t>(std::time(0)) >> 2));
-    random_engine = std::default_random_engine(seed);
+    random_engine = std::default_random_engine(1);
     generate_ = generator;
     rng = std::mt19937(rd());
     

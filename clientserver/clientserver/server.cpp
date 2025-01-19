@@ -179,6 +179,7 @@ void sharedMemCtl(string appName, int no, CacheHitStatistics* chs)
 						string key2find(getMessage->key);
 						key2find = "0:" + key2find;
 						string remoteRes = dcpNode->sendMessage(key2find);
+						// std::cout<<"remoteRes is: "<<remoteRes<<std::endl;
 						if(remoteRes!=""){
 							getSignal = 2;
 						}

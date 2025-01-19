@@ -96,7 +96,8 @@ private:
             if(buffer[0]=='0'){
                 // 收到其他节点发送的查询请求
                 char getBuffer[1024];
-                getFunc(receivedMessage, getBuffer);
+                memset(buffer,0,sizeof(buffer));
+                getFunc(receivedMessage.substr(2), getBuffer);
                 ssize_t sent_len = sendto(recv_sockfd, getBuffer, strlen(getBuffer), 0,
                                     (struct sockaddr*)&sender_addr, addr_len);
                 if (sent_len < 0) {
@@ -119,7 +120,7 @@ private:
             return "";
         }
 
-        // std::cout << "Sent message to " << dest_address << ": " << message << std::endl;
+        // std::cout << "Sent message: " << message << std::endl;
 
         // 接收回应
         char buffer[1024];
@@ -132,6 +133,7 @@ private:
         }
 
         buffer[len] = '\0';  // Null-terminate the received string
+        // std::cout<<" receive: "<< buffer<<std::endl;
         return std::string(buffer);
     }
 

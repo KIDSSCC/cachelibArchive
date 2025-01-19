@@ -94,7 +94,8 @@ int main(int argc, char* argv[]){
     auto end_time = std::chrono::system_clock::now();
 
     //开始执行
-    while(do_run && run_times>0){
+    while(do_run && run_times > 0){
+
         run_times--;
         // 创建多线程执行查询任务
         std::vector<std::thread> threads;
@@ -159,7 +160,7 @@ int main(int argc, char* argv[]){
         end_time = std::chrono::system_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::seconds>(end_time - start_time).count();
         if(duration >= threshold) {
-            break;
+            continue;
         }
     }
     

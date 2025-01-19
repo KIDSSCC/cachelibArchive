@@ -66,6 +66,7 @@ void initializeCache(int cache_size, int pool_size, int default_pool)
     }
     XLOG(INFO) << "----------Info End ----------";
     XLOG(INFO) << "Create Cache Successfully";
+
 }
 
 void destroyCache()

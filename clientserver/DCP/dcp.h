@@ -92,7 +92,7 @@ private:
             }
             buffer[len] = '\0';
             string receivedMessage(buffer);
-            std::cout<<"received message!\n";
+            // std::cout<<"received message!\n";
             if(buffer[0]=='0'){
                 // 收到其他节点发送的查询请求
                 char getBuffer[1024];

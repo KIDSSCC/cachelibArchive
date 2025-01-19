@@ -22,6 +22,8 @@ export LD_LIBRARY_PATH
 rm -rf Build
 rm -rf log/*
 rm -rf /dev/shm/*
+
+rm -rf *.log
 mkdir -p Build
 cd Build
 cmake $CMAKE_PARAMS ..

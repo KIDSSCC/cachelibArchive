@@ -211,7 +211,7 @@ void sharedMemCtl(string appName, int no, CacheHitStatistics* chs)
 		// 统计命中信息
 			if(!chs->spinlock.test_and_set(memory_order_acquire)){
 				gettimeofday(&(chs->endTime), NULL);
-				if(getUsedTime(chs->startTime, chs->endTime)>10){
+				if(getUsedTime(chs->startTime, chs->endTime) > 60){
 					while(chs->spinlockForRate.test_and_set(memory_order_acquire));
 					int t_totalGet = 0;
 					int t_totalLocalHit = 0;
@@ -227,7 +227,7 @@ void sharedMemCtl(string appName, int no, CacheHitStatistics* chs)
 					chs->spinlockForRate.clear(memory_order_release);
 					ofstream logFile(chs->logFileName, ios::app);
 					if(logFile.is_open()){
-						string logInfo = "Get:Local:Remote - " + to_string(t_totalGet) + to_string(t_totalLocalHit) + to_string(t_totalRemoteHit);
+						string logInfo = "Get:Local:Remote - " + to_string(t_totalGet) + " " + to_string(t_totalLocalHit) + " " + to_string(t_totalRemoteHit);
 						logFile<<logInfo<<endl;
 						logFile.close();
 					}

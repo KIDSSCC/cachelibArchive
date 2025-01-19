@@ -154,32 +154,45 @@ void sharedMemCtl(string appName, int no, CacheHitStatistics* chs)
 			waitCount++;
 		}
 		bool res =false;
+		string key_, value_;
+		int getSignal = 0;
         switch(getMessage->ctrl)
         {
             case SIG_SET:
                 // set operation
+				key_ = string(getMessage->key);
+				value_ = string(getMessage->value);
+				// std::cout << "set operation, key is: " << key_ <<endl;
                 set_(getMessage->pid,getMessage->key,getMessage->value);
                 sem_post(semaphore_Server);
                 break;
             case SIG_GET:
                 // get operation 
+				getSignal = 0;
+				key_ = string(getMessage->key);
                 res = get_(getMessage->key, getMessage->value);
 				#if CACHE_HIT
 					// 如果本地查询miss，通过dcp向远程节点发起请求。
-					if(!res){
+					if(res){
+						getSignal = 1;
+					}else{
 						string key2find(getMessage->key);
 						key2find = "0:" + key2find;
 						string remoteRes = dcpNode->sendMessage(key2find);
-						
+						if(remoteRes!=""){
+							getSignal = 2;
+						}
 						// 将远程查询的结果拷贝至共享内存区
 						strcpy(getMessage->value, remoteRes.c_str());
 					}
-					// while(chs->spinlockForRate.test(memory_order_acquire));
-					// chs->totalGet[no]++;
-					// if(res){
-					// 	chs->hitGet[no]++;
-					// }
-					// chs->spinlockForRate.clear(memory_order_release);
+					while(chs->spinlockForRate.test(memory_order_acquire));
+					chs->totalGet[no]++;
+					if(getSignal==1){
+						chs->localHitGet[no]++;
+					}else if(getSignal==2){
+						chs->remoteHitGet[no]++;
+					}
+					chs->spinlockForRate.clear(memory_order_release);
 				#endif
                 sem_post(semaphore_GetBack);
                 break;
@@ -200,19 +213,21 @@ void sharedMemCtl(string appName, int no, CacheHitStatistics* chs)
 				gettimeofday(&(chs->endTime), NULL);
 				if(getUsedTime(chs->startTime, chs->endTime)>10){
 					while(chs->spinlockForRate.test_and_set(memory_order_acquire));
-					double t_totalGet = 0;
-					double t_totalHit = 0;
+					int t_totalGet = 0;
+					int t_totalLocalHit = 0;
+					int t_totalRemoteHit = 0;
 					for(int i = 0; i<int(chs->totalGet.size()); i++){
 						t_totalGet += chs->totalGet[i];
 						chs->totalGet[i] = 0;
-						t_totalHit += chs->hitGet[i];
-						chs->hitGet[i] = 0;
+						t_totalLocalHit += chs->localHitGet[i];
+						chs->localHitGet[i] = 0;
+						t_totalRemoteHit += chs->remoteHitGet[i];
+						chs->remoteHitGet[i] = 0;
 					}
 					chs->spinlockForRate.clear(memory_order_release);
 					ofstream logFile(chs->logFileName, ios::app);
 					if(logFile.is_open()){
-						//string logInfo = "totalGet is: " + to_string(t_totalGet) + " totalHit is: " + to_string(t_totalHit) +  " Cache Hit Rate: " + to_string(t_totalHit/t_totalGet);
-						string logInfo = "Cache Hit Rate: " + to_string(t_totalHit/t_totalGet);
+						string logInfo = "Get:Local:Remote - " + to_string(t_totalGet) + to_string(t_totalLocalHit) + to_string(t_totalRemoteHit);
 						logFile<<logInfo<<endl;
 						logFile.close();
 					}
@@ -367,14 +382,18 @@ int main(int argc, char* argv[])
 	size_conv = g_tmp==0?size_conv:(g_tmp * MB_SIZE);
 
     initializeCache(cacheSize, poolSize, defaultPool);
-    
+
     thread t_listenAddPool(listen_addpool);
-    t_listenAddPool.join();
 
 	//分布式通信设置
 	vector<string> other_nodes = {OTHER_NODE};
 	dcpNode = new Node(DCP_PORT, other_nodes, getPack);
 	dcpNode->start();
+
+
+    t_listenAddPool.join();
+
+	
 
     destroyCache();
 }

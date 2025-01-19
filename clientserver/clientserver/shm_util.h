@@ -74,7 +74,8 @@ public:
 	std::atomic_flag spinlock;
 	std::atomic_flag spinlockForRate;
 	std::vector<double> totalGet;
-	std::vector<double> hitGet;
+	std::vector<double> localHitGet;
+	std::vector<double> remoteHitGet;
 	std::string poolName;
 	std::string logFileName;
 	CacheHitStatistics(std::string name):spinlock(ATOMIC_FLAG_INIT), spinlockForRate(ATOMIC_FLAG_INIT){
@@ -83,9 +84,10 @@ public:
 		gettimeofday(&(this->startTime), NULL);
 	};
 	void adjustSize(int nSize){
-		while(int(totalGet.size())<nSize+1){
+		while(int(totalGet.size()) < nSize+1){
 			totalGet.push_back(0);	
-			hitGet.push_back(0);
+			localHitGet.push_back(0);
+			remoteHitGet.push_back(0);
 		}
 	};
 

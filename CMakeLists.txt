@@ -5,6 +5,26 @@ project(CachelibServer CXX)
 set(CMAKE_CXX_STANDARD 20)
 message("-- Detecting C++ standard ${CMAKE_CXX_STANDARD}")
 
+# 检查 gcc 版本
+execute_process(
+    COMMAND gcc --version
+    OUTPUT_VARIABLE GCC_VERSION_OUTPUT
+    ERROR_VARIABLE GCC_VERSION_ERROR
+    RESULT_VARIABLE GCC_VERSION_RESULT
+)
+
+# 检查 g++ 版本
+execute_process(
+    COMMAND g++ --version
+    OUTPUT_VARIABLE GPP_VERSION_OUTPUT
+    ERROR_VARIABLE GPP_VERSION_ERROR
+    RESULT_VARIABLE GPP_VERSION_RESULT
+)
+
+# 打印输出结果（可选）
+message(STATUS "GCC version: ${GCC_VERSION_OUTPUT}")
+message(STATUS "G++ version: ${GPP_VERSION_OUTPUT}")
+
 find_package(cachelib CONFIG REQUIRED)
 
 # some paths

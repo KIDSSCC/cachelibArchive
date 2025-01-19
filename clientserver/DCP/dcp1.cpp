@@ -7,7 +7,7 @@ bool reback_func(const std::string& param1, char* param2)
 }
 
 int main(){
-    std::vector<std::string> other_nodes = {"127.0.0.1:1413"};
+    std::vector<std::string> other_nodes = {"124.70.22.234:1412"};
     Node node(1412, other_nodes, reback_func);
     node.start();
 

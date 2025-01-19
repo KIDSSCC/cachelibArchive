@@ -2,10 +2,7 @@
 #include "benchmarks/YCSBBenchmark.h"
 #include "benchmarks/DynamicBenchmark.h"
 // 客户端程序
-// #include "backend/MysqlBackend.h"
-// #include "backend/MongoDBBackend.h"
 #include "backend/LevelDBBackend.h"
-// #include "backend/SQLiteBackend.h"
 #include "backend/TmdbBackend.h"
 
 #include "utils/percentile.h"
@@ -23,21 +20,15 @@
 #include <climits>
 #include <chrono>
 
-#define WARMTIME 300
 #define RUNTIME 600
-#define PRECHANGE 30
 
 bool cache_enabled = false;
 bool do_prepare = true;
-bool do_warmup = false;
 bool do_run = true;
 int num_threads = 1;
 int run_times = 0;
 int choosed_workload = 0;
-std::string profile_file = "";
-int logInfo = 0;
 int currentMaxQueries = MAX_QUERIES;
-bool final_eof = false;
 
 std::atomic<int> g_next_insert_key;
 
@@ -51,11 +42,7 @@ bool arg_parser(int argc, char* argv[]){
                 num_threads = std::stoi(argv[i + 1]);
             }
         } else if (arg == "--prepare") {
-            do_warmup = false;
             do_run = false;
-        } else if (arg == "--warmup") {
-            do_prepare = false;
-			do_warmup = true;
         } else if (arg == "--run") {
             do_prepare = false;
             if (i + 1 < argc) {
@@ -65,34 +52,6 @@ bool arg_parser(int argc, char* argv[]){
 			if(run_times==-1){
 				run_times = INT_MAX;
 			}
-        } else if (arg == "--profile") {
-            if (i + 1 < argc) {
-                profile_file = argv[i + 1];
-            }
-		}else if(arg=="--loginfo"){
-			if(i + 1 < argc){
-				logInfo = std::stoi(argv[i+1]);
-			}
-		}else if(arg=="--maxquery"){
-			if(i+1<argc){
-				currentMaxQueries = std::stoi(argv[i+1]);
-			}
-        }else if(arg == "--workload"){
-            if(i+1<argc){
-				choosed_workload = std::stoi(argv[i+1]);
-			}
-        } else if (arg == "--help") {
-            std::cout << "Usage: sqlcache [options]\n"
-                      << "Options:\n"
-                      << "  --cache: enable cache\n"
-                      << "  --threads <num>: number of threads\n"
-                      << "  --prepare: only prepare the database\n"
-                      << "  --warmup <num>: run the benchmark for <num> times as warmup\n"
-                      << "  --run <num>: run the benchmark for <num> times\n"
-                      << "  --profile <file>: dump the latencies to a file\n"
-                      << "  --help: show this message\n"
-                      << "if no options are provided, both preparation and benchmark will be run\n";
-            return false;
         }
     }
     return true;
@@ -103,11 +62,10 @@ int main(int argc, char* argv[]){
     if(!arg_parser(argc, argv))
         return 0;
 
-    // 利用配置文件构造query生成器，使用20%大小的工作集进行最初的warmup
+    // 工作负载仅有uniform一种
     std::vector<std::shared_ptr<Generator>> generators = {
         WORKLOAD_TYPE
     };
-    generators.emplace(generators.begin(), std::make_shared<Generator>(D_UNIFORM, MAX_RECORDS * 0.2, std::vector<double>{}));
 
     atomic<double> total_throughput(0.0);
     atomic<double> total_usedtime(0.0);
@@ -117,7 +75,6 @@ int main(int argc, char* argv[]){
 
     if (do_prepare) {
         BACKEND backend(0); // therad_id = 0 for same table across threads
-        //kidsscc:write to cache in prepare phase
         if(cache_enabled){
             CachelibClient unified_cache;
             unified_cache.addpool(UNIFIED_CACHE_POOL);
@@ -130,32 +87,15 @@ int main(int argc, char* argv[]){
         return 0;
     }
 
-    //  时间对齐点，debug用
-    // std::tm specific_time = {};
-    // specific_time.tm_year = 2024 - 1900; // 年份从1900开始
-    // specific_time.tm_mon = 11 - 1;         // 月份从0开始
-    // specific_time.tm_mday = 26;            // 日
-    // specific_time.tm_hour = 10;
-    // specific_time.tm_min = 0;
-    // specific_time.tm_sec = 0; 
-
-    // std::time_t specific_time_t = std::mktime(&specific_time);
-    // auto specific_time_point = std::chrono::system_clock::from_time_t(specific_time_t);
-
     // 从一个选定的query生成器开始执行，默认为1，第一阶段开始warmup
     int generator_idx = choosed_workload;
-    long long threshold = WARMTIME;
+    long long threshold = RUNTIME;
     auto start_time = std::chrono::system_clock::now();
     auto end_time = std::chrono::system_clock::now();
 
     //开始执行
-    while(do_run){
-        // std::ofstream outx(profile_file + "_subItem.log", std::ios::app);
-        // std::ofstream outy(profile_file + "_subItem2.log", std::ios::app);
-        // auto sub_start = std::chrono::system_clock::now();
-        // outx << "sub start time is: " << std::chrono::duration_cast<std::chrono::seconds>(sub_start - specific_time_point).count() << std::endl;
-        // outy << "sub start time is: " << std::chrono::duration_cast<std::chrono::seconds>(sub_start - specific_time_point).count() << std::endl;
-
+    while(do_run && run_times>0){
+        run_times--;
         // 创建多线程执行查询任务
         std::vector<std::thread> threads;
         for (int i = 0; i < num_threads; i++) {
@@ -165,14 +105,11 @@ int main(int argc, char* argv[]){
                 CachelibClient cacheclient;
                 BACKEND backend(0);
                 if (cache_enabled) {
-                    cacheclient.addpool(UNIFIED_CACHE_POOL, profile_file + "_subItem2.log");
+                    cacheclient.addpool(UNIFIED_CACHE_POOL);
                     backend.enable_cache(cacheclient);
                 }
 
-                int adjust_querys = currentMaxQueries;
-                if(generator_idx == 0)
-                    adjust_querys = 500;
-                DynamicBenchmark benchmark(backend, generators[generator_idx], adjust_querys);
+                DynamicBenchmark benchmark(backend, generators[generator_idx], currentMaxQueries);
                 benchmark.run();
 
                 double throughput = (double) benchmark.records_executed / (double) benchmark.millis_elapsed * 1000;
@@ -206,37 +143,11 @@ int main(int argc, char* argv[]){
         double total_hitrate = (double) total_hit_count / (double) total_records_executed;
         total_usedtime = total_usedtime/num_threads;
 
-        // 输出完整元日志
-        if (!profile_file.empty()) {
-            std::ofstream out(profile_file + "_meta.log", std::ios::app);
-            out << total_percentile_99 << " " 
-                << average_percentile << " " 
-                << total_usedtime << " "
-                << total_throughput << " " 
-                << total_hitrate << std::endl;
-        }
-
-        if(!profile_file.empty()) {
-            std::ofstream out(profile_file + "_subItem.log", std::ios::app);
-            switch(logInfo){
-                case 0:
-                    out << total_percentile_99 << std::endl;
-                    break;
-                case 3:
-                    out << average_percentile << std::endl;
-                    break;
-                case 4:
-                    out << total_throughput << std::endl;
-                    break;
-                case 5:
-                    out << total_hitrate << std::endl;
-                    break;
-                default:break;
-            }
-            //固定向日志输出命中率
-            std::ofstream out2(profile_file + "_subItem2.log", std::ios::app);
-            out2 << total_hitrate << std::endl;
-        }
+        std::cout << total_percentile_99 << " " 
+                    << average_percentile << " " 
+                    << total_usedtime << " "
+                    << total_throughput << " " 
+                    << total_hitrate << std::endl;
 
         // 数据清理
         total_throughput = 0;
@@ -247,29 +158,8 @@ int main(int argc, char* argv[]){
         //动态负载控制
         end_time = std::chrono::system_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::seconds>(end_time - start_time).count();
-        // outx << "start time is:" << std::chrono::duration_cast<std::chrono::seconds>(start_time - specific_time_point).count()
-        //     << " end time is:" << std::chrono::duration_cast<std::chrono::seconds>(end_time - specific_time_point).count()
-        //     << " duration is:" << duration<< std::endl;
-        // outy << "start time is:" << std::chrono::duration_cast<std::chrono::seconds>(start_time - specific_time_point).count()
-        //     << " end time is:" << std::chrono::duration_cast<std::chrono::seconds>(end_time - specific_time_point).count()
-        //     << " duration is:" << duration<< std::endl;
-
-        // 预留30s时间进行负载变化
-        if(duration >= threshold - PRECHANGE) {
-            threshold = RUNTIME;
-            start_time = std::chrono::system_clock::now();
-            // outx << "workload change, duration is:" << duration << " seconds, next phase is: " << threshold<< std::endl;
-            // outy << "workload change, duration is:" << duration << " seconds, next phase is: " << threshold<< std::endl;
-            generator_idx++;
-            // 当所有query生成器均用完时，不再进行负载变换，仅按照最后一个query生成器继续执行一轮
-            if(final_eof){
-                break;
-            }
-            if(generator_idx >= (int)generators.size() && !final_eof){
-                // 标识目前已经进入最后一轮
-                generator_idx = generators.size() - 1;
-                final_eof = true;
-            }
+        if(duration >= threshold) {
+            break;
         }
     }
     

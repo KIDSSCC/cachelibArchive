@@ -35,12 +35,11 @@ private:
     //接收get操作返回结果
     char getValue[SHM_VALUE_SIZE];
 
-	string sublog_ = "";
 public:
     CachelibClient();
     ~CachelibClient();
     void prepare_shm(string appName);
-    int addpool(string poolName, string sublog = "");
+    int addpool(string poolName);
     void setKV(string key,string value);
     string getKV(string key);
     bool delKV(string key);

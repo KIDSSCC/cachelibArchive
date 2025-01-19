@@ -59,6 +59,7 @@ public:
 
     // 向其他节点发送消息并接收回应
     std::string sendMessage(const std::string& message) {
+        // std::cout<<"sendMessage\n";
         std::string response = "";
         for (const auto& address : other_node_addresses) {
             size_t colon_pos = address.find(':');
@@ -91,6 +92,7 @@ private:
             }
             buffer[len] = '\0';
             string receivedMessage(buffer);
+            std::cout<<"received message!\n";
             if(buffer[0]=='0'){
                 // 收到其他节点发送的查询请求
                 char getBuffer[1024];
@@ -105,6 +107,7 @@ private:
     }
 
     std::string sendMessageToNode(const std::string& dest_address, const int& dest_port, const std::string& message) {
+        // std::cout<<"sendMessageToNode\n";
         struct sockaddr_in dest_addr;
         dest_addr.sin_family = AF_INET;
         dest_addr.sin_port = htons(dest_port);
@@ -116,7 +119,7 @@ private:
             return "";
         }
 
-        std::cout << "Sent message to " << dest_address << ": " << message << std::endl;
+        // std::cout << "Sent message to " << dest_address << ": " << message << std::endl;
 
         // 接收回应
         char buffer[1024];

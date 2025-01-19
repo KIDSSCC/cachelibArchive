@@ -19,7 +19,6 @@ LevelDBBackend::LevelDBBackend(int thread_id) : Backend(thread_id) {
         }
     }
     try {
-        // db_path = LEVELDB_DIR "/db" + std::to_string(thread_id);
         db_path = LEVELDB_DIR "/db";
         options.create_if_missing = true;  // automatically create the database if it doesn't exist.
         options.block_cache = leveldb::NewLRUCache(0); // shrink down the leveldb's built-in cache

@@ -58,6 +58,7 @@ bool DynamicBenchmark::step() {
         // read query
         std::vector<std::string> results;
         int key = generate_->get_num(random_engine);
+        // std::cout<<" in step, key is: "<<key<<std::endl;
         if (!read_record(key, results)) {
             std::cout << "DynamicBenchmark: read query failed" << std::endl;
             return false;

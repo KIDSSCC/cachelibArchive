@@ -64,7 +64,7 @@ void CachelibClient::prepare_shm(string appName)
     return;
 }
 
-int CachelibClient::addpool(string poolName, string sublog)
+int CachelibClient::addpool(string poolName)
 {
     // logger.info("----- Shared Memory -----");
 	int client_socket = socket(AF_INET, SOCK_STREAM, 0);
@@ -88,7 +88,6 @@ int CachelibClient::addpool(string poolName, string sublog)
 		close(client_socket);
 		exit(EXIT_FAILURE);
 	}
-    this->sublog_ = sublog;
 
 	char buffer[32];
 	memset(buffer, 0, sizeof(buffer));
@@ -131,6 +130,7 @@ void CachelibClient::setKV(string key,string value)
 
 string CachelibClient::getKV(string key)
 {
+    // std::cout<<"in getKV, prefix is: " << this->prefix << " key is: " << key << endl;
     //锁资源
     while(sem_wait(this->semaphore_Server)!=0);
     //准备要存入共享内存的数据
@@ -139,7 +139,7 @@ string CachelibClient::getKV(string key)
     memset(message->key,0,sizeof(message->key));
     memset(message->value,0,sizeof(message->value));
 
-    strcpy(message->key,(this->prefix+key).c_str());
+    strcpy(message->key,(this->prefix + key).c_str());
     sem_post(this->semaphore);
 
     //等待回传

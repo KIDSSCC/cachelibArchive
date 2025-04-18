@@ -2,16 +2,22 @@
 #include <fstream>
 #include <chrono>
 
+/*
+CachelibClient：构造函数，初始化随机数生成引擎
+*/
 CachelibClient::CachelibClient():gen(rd()), dis(0.0, 1.0)
 {
-    this->getHit=0;
+    this->pid = -1;
 	this->shmId = "";
-    logger.setLogLevel(LogLevel::K_DEBUG);
 }
+
+/*
+~CachelibClient：析构函数，向server发送中止信号并释放共享内存与信号量资源。
+*/
 CachelibClient::~CachelibClient(){
 	if(this->shmId != ""){
+		//等待Server端空闲，向Server端发送SIG_CLOSE信号关闭连接
 		while(sem_trywait(this->semaphore_Server)!=0);
-		//prepare SIG_CLOSE
 		shm_stru* message=static_cast<shm_stru*>(this->shared_memory);
 		message->ctrl=SIG_CLOSE;
 		sem_post(this->semaphore);
@@ -29,6 +35,11 @@ CachelibClient::~CachelibClient(){
 	}
 }
 
+/*
+prepare_shm:根据标识符进行共享内存映射，并打开相关信号量
+params：
+    appName:标识符，共享内存标识为appName，三个信号量标识分别为appName，appName_Server，appName_getback
+*/
 void CachelibClient::prepare_shm(string appName)
 {
     int SHARED_MEMORY_SIZE = sizeof(shm_stru);
@@ -46,8 +57,8 @@ void CachelibClient::prepare_shm(string appName)
         exit(EXIT_FAILURE);
     }
     //打开信号量
-    string sem_server=string(appName)+"_Server";
-    string sem_getback=string(appName)+"_getback";
+    string sem_server=appName+"_Server";
+    string sem_getback=appName+"_getback";
     do{
         this->semaphore = sem_open(appName.c_str(), 0);
     } while (this->semaphore==SEM_FAILED);
@@ -64,13 +75,25 @@ void CachelibClient::prepare_shm(string appName)
     return;
 }
 
-int CachelibClient::addpool(string poolName, string sublog)
+/*
+addpool:与服务端之间以socket通信的形式注册新的缓存池，获取缓存池id与同步标识
+params：
+    poolName：字符串类型的缓存池名
+returns：
+    int：缓存池id
+*/
+int CachelibClient::addpool(string poolName)
 {
-    // logger.info("----- Shared Memory -----");
+    // 错误检查：同一client对象禁止复用
+    if(this->pid!=-1){
+        cout<<"Error: Cache client already used\n";
+        exit(EXIT_FAILURE);
+    }
+    // socket通信准备
 	int client_socket = socket(AF_INET, SOCK_STREAM, 0);
 	if(client_socket == -1){
 		cout<<"Error: Failed to create socket\n";
-        	exit(EXIT_FAILURE);
+        exit(EXIT_FAILURE);
 	}
 	sockaddr_in server_address;
 	server_address.sin_family = AF_INET;
@@ -80,16 +103,17 @@ int CachelibClient::addpool(string poolName, string sublog)
 		cout<<"Error: Failed to connect to server\n";
         exit(EXIT_FAILURE);
 	}
+
+    // 向服务端发送信息
 	string message = "A:" + poolName;
-	
 	int bytesSent = send(client_socket, message.c_str(), message.size() + 1, 0);
 	if (bytesSent == -1){
 		cout<<"Error: Failed to send message\n";
 		close(client_socket);
 		exit(EXIT_FAILURE);
 	}
-    this->sublog_ = sublog;
 
+    // 接收返回结果
 	char buffer[32];
 	memset(buffer, 0, sizeof(buffer));
 	int bytesReceived = recv(client_socket, buffer, 32, 0);
@@ -100,6 +124,7 @@ int CachelibClient::addpool(string poolName, string sublog)
 	}
 	close(client_socket);
 
+    // 返回结果中解析pid与标识符。标识符用于初始化自身共享内存等内容
 	string recvInfo = buffer;
 	size_t spacePosition = recvInfo.find(' ');
 	this->pid = stoi(recvInfo.substr(0, spacePosition));
@@ -110,8 +135,25 @@ int CachelibClient::addpool(string poolName, string sublog)
 	return this->pid;
 }
 
+/*
+haspool：进行访存操作前检查是否已注册缓存池
+*/
+void CachelibClient::haspool()
+{
+    if(this->pid == -1)
+    {
+        // 未注册缓存池进行访存调用，进行错误提示
+        cout<<"Error: G/S/D without cache pool\n";
+        exit(EXIT_FAILURE);
+    }
+}
+
+/*
+setKV：向缓存中存入
+*/
 void CachelibClient::setKV(string key,string value)
 {
+    this->haspool();
     //锁资源
     while(sem_trywait(this->semaphore_Server)!=0);
     //准备要存入共享内存的数据
@@ -125,12 +167,17 @@ void CachelibClient::setKV(string key,string value)
     strcpy(message->value,value.c_str());
     //释放资源
     sem_post(this->semaphore);
-
     return ;
 }
 
+/*
+getKV：根据key在缓存池内查询value
+params：
+    key：待查询的key
+*/
 string CachelibClient::getKV(string key)
 {
+    this->haspool();
     //锁资源
     while(sem_wait(this->semaphore_Server)!=0);
     //准备要存入共享内存的数据
@@ -149,14 +196,11 @@ string CachelibClient::getKV(string key)
 
     //control cache miss
     double randomNum = dis(gen);
-    if(randomNum>=0){
+    if(randomNum>=(double)1 - HIT_CONTROL){
     	strcpy(this->getValue,message->value);
 
     	//释放资源
     	sem_post(this->semaphore_Server);
-    	if(strlen(this->getValue)!=0)
-        	this->getHit++;
-
     	return this->getValue;
     }else{
 	    sem_post(this->semaphore_Server);
@@ -164,14 +208,19 @@ string CachelibClient::getKV(string key)
     }
 }
 
+/*
+delKV：根据key删除缓存池内的value
+params：
+    key：待删除的key
+*/
 bool CachelibClient::delKV(string key)
 {
+    this->haspool();
     //锁资源
     while(sem_trywait(this->semaphore_Server)!=0);
-    //sem_wait(this->semaphore_Server);
     //准备要存入共享内存的数据
     shm_stru* message=static_cast<shm_stru*>(this->shared_memory);
-    message->ctrl=2;
+    message->ctrl=SIG_DEL;
     memset(message->key,0,sizeof(message->key));
     memset(message->value,0,sizeof(message->value));
     strcpy(message->key,(this->prefix+key).c_str());

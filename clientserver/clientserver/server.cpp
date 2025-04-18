@@ -12,9 +12,7 @@
 #include <fstream>
 #include <unistd.h>
 #include <cstdlib> 
-//for timeval
 #include <sys/time.h>
-//for atomic_flag
 #include <atomic>
 
 #include <cachelibHeader.h>
@@ -36,15 +34,37 @@ map<string, pair<int, int>> poolRecord;
 map<string, CacheHitStatistics*> name2CHS;
 size_t size_conv = SIZE_CONV;
 
+/*
+timeval_to_seconds：将timeval转换为以秒为单位的浮点数值
+params：
+	t：原始timeval对象
+return：
+	double：以秒为单位的浮点数
+*/
 double timeval_to_seconds(const timeval& t) {
     return t.tv_sec + t.tv_usec / 1000000.0;
 }
+
+/*
+getUsedTime：获取两个timeval之间间隔的时间
+params：
+	st：起始时间
+	en：结束之间
+return：
+	double：start与end间隔的时间
+*/
 double getUsedTime(const timeval& st,const timeval& en)
 {
 	double startTime=timeval_to_seconds(st);
 	double endTime=timeval_to_seconds(en);
 	return endTime-startTime;
 }
+
+/*
+getCacheStats：以map形式获取缓存实例内所有缓存池的大小。key为缓存池名，value为缓存池大小，换算至缓存粒度
+return：
+	map<string, uint64_t>：key为缓存池名，value为换算至缓存粒度的缓存池大小
+*/
 map<string, uint64_t> getCacheStats()
 {
 	map<string, uint64_t> res;
@@ -56,7 +76,13 @@ map<string, uint64_t> getCacheStats()
 	return res;
 }
 
+/*
+executeNewConfig：执行一个新的缓存分配方案
+params：
+	config：字符串类型的缓存划分方案，以\n分割为两行。第一行为缓存池名，第二行为对应各缓存池的空间大小，换算为缓存粒度。各行内以空格分隔
+*/
 void executeNewConfig(string config){
+	// 将缓存池名与空间大小两行进行拆分
 	istringstream iss(config);
 	string line,size;
 	getline(iss, line);
@@ -66,12 +92,14 @@ void executeNewConfig(string config){
 	string token;
 	size_t num;
 
+	// 解析各个token
 	vector<string> poolNames;
 	vector<size_t> poolSizes;
 	while(line_stream1>>token && line_stream2>>num){
 		poolNames.push_back(token);
 		poolSizes.push_back(num);
 	}
+
 	// first,shrinkle pool
 	for(int i=0;i<(int)poolNames.size();i++){
 		size_t currSize = getPoolSizeFromName(poolNames[i]) / size_conv;
@@ -120,11 +148,11 @@ void sharedMemCtl(string appName, int no, CacheHitStatistics* chs)
     string sem_getback=localAppName + "_getback";
 	string getValue;
 
-    //indicates whether the server currently needs to handle the shared memory area
+    //localAppName:indicates whether the server currently needs to handle the shared memory area
+    //localAppName_Server:indicates whether the shared memory is free to begin a new request
+    //localAppName_getback:indicates whether the client currently can read the result of get operation
     sem_t* semaphore=sem_open(localAppName.c_str(), O_CREAT, 0666,0);
-    //indicates whether the shared memory is free to begin a new request
     sem_t* semaphore_Server=sem_open(sem_server.c_str(), O_CREAT, 0666,1);
-    //indicates whether the client currently can read the result of get operation
     sem_t* semaphore_GetBack=sem_open(sem_getback.c_str(), O_CREAT, 0666,0);
     
     bool available = true;
@@ -161,7 +189,6 @@ void sharedMemCtl(string appName, int no, CacheHitStatistics* chs)
 					}
 					chs->spinlockForRate.clear(memory_order_release);
 				#endif
-                // strcpy(getMessage->value,getValue.c_str());
                 sem_post(semaphore_GetBack);
                 break;
             case SIG_DEL:
@@ -269,63 +296,74 @@ void listen_addpool()
 			continue;
 		}
 		// wait to solve request
-		if(buf[0]=='A'){
-			//registre pool
-			string poolName = string(buf, 2, bytesReceived-2);
-			int pid = addpool_(poolName);
-			//for multithread
-			int newShmId;
-			auto it = poolRecord.find(poolName);
-			if(it == poolRecord.end()||it->second.first==0){
-				//new cache pool
-				while(slockForRecord.test_and_set(memory_order_acquire));
-				poolRecord[poolName] = make_pair(1, 0);
-				newShmId = (poolRecord[poolName].second)++;
-				slockForRecord.clear(memory_order_release);
-				name2CHS[poolName] = new CacheHitStatistics(poolName);
-			}else{
-				while(slockForRecord.test_and_set(memory_order_acquire));
-				(poolRecord[poolName].first)++;
-				newShmId = (poolRecord[poolName].second)++;
-				slockForRecord.clear(memory_order_release);
-			}
-			name2CHS[poolName]->adjustSize(newShmId);
-			string shmId = poolName + "_" + to_string(newShmId);
-			thread t(sharedMemCtl, shmId, newShmId, name2CHS[poolName]);
-			t.detach();
+		switch(buf[0]){
+			case 'A':{
+				//register pool
+				string poolName = string(buf, 2, bytesReceived-2);
+				int pid = addpool_(poolName);
+				//for multithread
+				int newShmId;
+				auto it = poolRecord.find(poolName);
+				if(it == poolRecord.end()||it->second.first==0){
+					//new cache pool
+					while(slockForRecord.test_and_set(memory_order_acquire));
+					poolRecord[poolName] = make_pair(1, 0);
+					newShmId = (poolRecord[poolName].second)++;
+					slockForRecord.clear(memory_order_release);
+					name2CHS[poolName] = new CacheHitStatistics(poolName);
+				}else{
+					while(slockForRecord.test_and_set(memory_order_acquire));
+					(poolRecord[poolName].first)++;
+					newShmId = (poolRecord[poolName].second)++;
+					slockForRecord.clear(memory_order_release);
+				}
+				// 多线程下，CacheHitStatistics调整至最大编号所对应的大小
+				name2CHS[poolName]->adjustSize(newShmId);
+				string shmId = poolName + "_" + to_string(newShmId);
+				// 服务端信道维护
+				thread t(sharedMemCtl, shmId, newShmId, name2CHS[poolName]);
+				t.detach();
 
-			string sendInfo = to_string(pid) + " " + shmId;
-			int bytesSent = send(client_socket, sendInfo.c_str(), sendInfo.size(), 0);
-			if(bytesSent == -1){
-				XLOG(ERR) << "Error: Failed to send response";
+				string sendInfo = to_string(pid) + " " + shmId;
+				int bytesSent = send(client_socket, sendInfo.c_str(), sendInfo.size(), 0);
+				if(bytesSent == -1){
+					XLOG(ERR) << "Error: Failed to send response";
+				}
+				break;
 			}
-			
-		}else if(buf[0]=='G'){
-			//get cache pool status
-			map<string, uint64_t> poolStats = getCacheStats();
-			ostringstream oss;
-			for(const auto& pair:poolStats){
-				oss<<pair.first<<":"<<pair.second<<";";
+			case 'G':{
+				//get cache pool status
+				map<string, uint64_t> poolStats = getCacheStats();
+				ostringstream oss;
+				for(const auto& pair:poolStats){
+					oss<<pair.first<<":"<<pair.second<<";";
+				}
+				string serialized_map = oss.str();
+				int bytesSent = send(client_socket, serialized_map.c_str(),serialized_map.size(), 0);
+				if(bytesSent == -1){
+					XLOG(ERR) << "Error: Failed to send response";
+				}
+				break;
 			}
-			string serialized_map = oss.str();
-			int bytesSent = send(client_socket, serialized_map.c_str(),serialized_map.size(), 0);
-			if(bytesSent == -1){
-				XLOG(ERR) << "Error: Failed to send response";
+			case 'S':{
+				//set Status
+				string getMessage = string(buf, 2, bytesReceived-2);
+				executeNewConfig(getMessage);
+				break;
 			}
-		}else if(buf[0]=='S'){
-			//set Status
-			string getMessage = string(buf, 2, bytesReceived-2);
-			executeNewConfig(getMessage);
-
-		}else if(buf[0]=='E'){
-			//end server
-			close(client_socket);
-			close(server_socket);
-			break;
+			case 'E':{
+				//end server
+				close(client_socket);
+				close(server_socket);
+				break;
+			}
+			default:
+				XLOG(ERR) << "Error: Invalid request "<< buf[0];
+				close(client_socket);
+				continue;
 		}
 		close(client_socket);
 	}
-
 }
 
 
@@ -333,6 +371,7 @@ int main(int argc, char* argv[])
 {
 	folly::Init init(&argc, &argv);
 
+	// 命令行参数解析初始化
 	int poolSize = -1;
 	int cacheSize = -1;
 	int defaultPool = 0;
@@ -346,8 +385,7 @@ int main(int argc, char* argv[])
 
     initializeCache(cacheSize, poolSize, defaultPool);
     
-    thread t_listenAddPool(listen_addpool);
-    t_listenAddPool.join();
+	listen_addpool();
 
     destroyCache();
 }

@@ -23,7 +23,7 @@
 
 #define WARMTIME 300
 #define RUNTIME 600
-#define PRECHANGE 30
+#define PRECHANGE 0
 
 bool cache_enabled = false;
 bool do_prepare = true;
@@ -163,7 +163,7 @@ int main(int argc, char* argv[]){
                 CachelibClient cacheclient;
                 BACKEND backend(0);
                 if (cache_enabled) {
-                    cacheclient.addpool(UNIFIED_CACHE_POOL, profile_file + "_subItem2.log");
+                    cacheclient.addpool(UNIFIED_CACHE_POOL);
                     backend.enable_cache(cacheclient);
                 }
 

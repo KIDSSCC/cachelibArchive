@@ -40,7 +40,7 @@ extern size_t poolSize;
 //set cachelib default config
 void cacheConfigure(CacheConfig& config);
 
-//ser hybrid config(nvm config)
+//set hybrid config(nvm config)
 NavyConfig getNvmConfig(const std::string& cacheDir);
 
 //create a new cachelib instance

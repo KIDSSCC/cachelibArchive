@@ -1,8 +1,7 @@
 #pragma once
 
 #include "common.h"
-#include CONFIG_FILE
-// #include "benchmarks/config.h" 
+#include CONFIG_FILE 
 #include "cache/AutoIncCache.h"
 #include <atomic>
 

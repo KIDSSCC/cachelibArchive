@@ -72,11 +72,11 @@ bool arg_parser(int argc, char* argv[]){
 				logInfo = std::stoi(argv[i+1]);
 			}
 		}else if(arg=="--maxquery"){
-			if(i+1<argc){
+			if(i + 1 < argc){
 				currentMaxQueries = std::stoi(argv[i+1]);
 			}
         }else if(arg == "--workload"){
-            if(i+1<argc){
+            if(i + 1 < argc){
 				choosed_workload = std::stoi(argv[i+1]);
 			}
         } else if (arg == "--help") {

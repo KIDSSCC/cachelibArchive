@@ -4,10 +4,8 @@
 #include "backend/backend.h"
 #include "utils/zipfian.h"
 #include "utils/randstring.h"
-#include "cache/AutoIncCache.h"
 #include "generator/generator.h"
-#include CONFIG_FILE
-// #include "config.h"  
+#include CONFIG_FILE  
 #include <random>
 #include <ctime>
 #include <numeric>

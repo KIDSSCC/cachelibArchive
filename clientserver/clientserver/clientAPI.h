@@ -34,18 +34,15 @@ private:
     sem_t* semaphore;
     sem_t* semaphore_Server;
     sem_t* semaphore_GetBack;
-
-    //接收get操作返回结果
-    char getValue[SHM_VALUE_SIZE];
 public:
     CachelibClient();
     ~CachelibClient();
     void prepare_shm(string appName);
     int addpool(string poolName);
     void haspool();
-    void setKV(string key,string value);
-    string getKV(string key);
-    bool delKV(string key);
+    void setKV(string& key,const string& value);
+    string getKV(const string& key);
+    bool delKV(string& key);
 
     //util
     int getPid(){return this->pid;};

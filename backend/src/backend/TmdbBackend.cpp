@@ -50,6 +50,7 @@ bool TmdbBackend::insert_record(int key, std::vector<std::string>& values) {
     if(cache_enabled){
         cache.set_(std::to_string(key), values[0]);
     }
+    // std::cout<<"Insert, Key: "<<std::to_string(key)<<" Value: "<<values[0]<<endl;
     tdb_store(db, std::to_string(key).c_str(), values[0].c_str(), TDB_INSERT);
     
     return true;
@@ -67,7 +68,7 @@ bool TmdbBackend::read_record(int key, std::vector<std::string>& results){
     if(cache_enabled) {
         // std::cout<<"get key is: "<<key<<std::endl;
         std::string value = cache.get_(std::to_string(key));
-        // std::cout<<"receive value"<< value <<std::endl;
+        // std::cout<<"Get, Key: "<<std::to_string(key)<<" Receive Value: "<< value <<std::endl;
         if(value != ""){
             results.push_back(value);
             hit_count++;

@@ -4,9 +4,12 @@ bool Benchmark::is_end() {
     return true;
 }
 
-void Benchmark::prepare() {
+unsigned int Benchmark::prepare() {
+    auto start = std::chrono::high_resolution_clock::now();
     create_database();
     load_database();
+    auto end = std::chrono::high_resolution_clock::now();
+    return std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
 }
 
 void Benchmark::run() {

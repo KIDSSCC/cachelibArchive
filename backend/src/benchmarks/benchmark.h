@@ -15,7 +15,7 @@ public:
     virtual bool load_database() = 0;
     virtual bool step() = 0;
     virtual bool is_end();
-    void prepare();
+    unsigned int prepare();
     void run();
     virtual bool cleanup() = 0;
 

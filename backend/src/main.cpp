@@ -149,15 +149,16 @@ int main(int argc, char* argv[]){
     if (do_prepare) {
         BACKEND backend(0); // therad_id = 0 for same table across threads
         //kidsscc:write to cache in prepare phase
+        CachelibClient unified_cache;
         if(cache_enabled){
-            CachelibClient unified_cache;
             unified_cache.addpool(UNIFIED_CACHE_POOL);
             backend.enable_cache(unified_cache);
         }
         // prepare阶段，传入benchmark的query生成器类型无所谓，都是按sequential执行数据存储，但是其中工作集大小需要确认
         DynamicBenchmark benchmark(backend, generators[0]);
-        benchmark.prepare();
-        std::cout << "Preparation done, " << g_next_insert_key << " records inserted." << std::endl;
+        unsigned int usedTime = benchmark.prepare();
+        std::cout << "Preparation done, " << g_next_insert_key << " records inserted" << std::endl;
+        std::cout << "Prepare Used Time: " << usedTime << std::endl;
         return 0;
     }
 

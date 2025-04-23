@@ -151,6 +151,7 @@ bool get_(CacheKey key, char getValue[])
 {
     CacheReadHandle rh = gCache_->find(key);
     if(!rh){
+        getValue[0] = '\0';
         return false;
     }
     memcpy(getValue, reinterpret_cast<const char*>(rh->getMemory()), rh->getSize());

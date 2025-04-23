@@ -1,5 +1,5 @@
 # 服务端编译脚本
-set -e
+#set -e
 
 # Root directory for the CacheLib project
 CLBASE="/home/md/CacheLib"
@@ -20,7 +20,7 @@ LD_LIBRARY_PATH="$PREFIX/lib:$PREFIX/lib64:${LD_LIBRARY_PATH:-}"
 export LD_LIBRARY_PATH
 
 rm -rf Build
-# rm -rf /dev/shm/*
+rm -rf /dev/shm/*
 
 mkdir -p Build
 cd Build

@@ -21,20 +21,20 @@
 #include <climits>
 #include <chrono>
 
-#define WARMTIME 300
-#define RUNTIME 600
+#define WARMUP_THRESHOLD 0.005
+#define RUNTIME 180
 
 bool cache_enabled = false;
-bool do_prepare = true;
-bool do_warmup = false;
-bool do_run = false;
+bool do_prepare = false;
+bool do_warmup = true;
+bool do_run = true;
 int num_threads = 1;
-int run_times = 0;
 int choosed_workload = 0;
-std::string profile_file = "";
+std::string profile_file = string("bin_") + UNIFIED_CACHE_POOL;
 int logInfo = 0;
 int currentMaxQueries = MAX_QUERIES;
-bool final_eof = false;
+// final_eof初始化为true时，将避免最后额外的一轮执行
+bool final_eof = true;
 
 std::atomic<int> g_next_insert_key;
 
@@ -53,6 +53,7 @@ bool arg_parser(int argc, char* argv[]){
                 num_threads = std::stoi(argv[i + 1]);
             }
         } else if (arg == "--prepare") {
+            do_prepare = true;
             do_warmup = false;
             do_run = false;
         } else if (arg == "--warmup") {
@@ -96,6 +97,45 @@ bool arg_parser(int argc, char* argv[]){
     return true;
 }
 
+void log_output(
+    unsigned int& total_percentile_99, 
+    unsigned int& average_percentile,
+    atomic<double>& total_usedtime,
+    atomic<double>& total_throughput,
+    double& total_hitrate
+){
+    // 输出完整元日志
+    if (!profile_file.empty()) {
+        std::ofstream out(profile_file + "_meta.log", std::ios::app);
+        out << total_percentile_99 << " " 
+            << average_percentile << " " 
+            << total_usedtime << " "
+            << total_throughput << " " 
+            << total_hitrate << std::endl;
+    }
+    if(!profile_file.empty()) {
+        std::ofstream out(profile_file + "_subItem.log", std::ios::app);
+        switch(logInfo){
+            case 0:
+                out << total_percentile_99 << std::endl;
+                break;
+            case 1:
+                out << average_percentile << std::endl;
+                break;
+            case 2:
+                out << total_usedtime << std::endl;
+                break;
+            case 3:
+                out << total_throughput << std::endl;
+                break;
+            case 4:
+                out << total_hitrate << std::endl;
+                break;
+            default:break;
+        }
+    }
+}
+
 int main(int argc, char* argv[]){
     // 命令行参数解析
     if(!arg_parser(argc, argv))
@@ -105,16 +145,7 @@ int main(int argc, char* argv[]){
     std::vector<std::shared_ptr<Generator>> generators = {
         WORKLOAD_TYPE
     };
-    if(do_warmup){
-        generators.emplace(generators.begin(), std::make_shared<Generator>(D_UNIFORM, MAX_RECORDS * 0.2, std::vector<double>{}));
-    }
-
-    atomic<double> total_throughput(0.0);
-    atomic<double> total_usedtime(0.0);
-    atomic<unsigned int> total_hit_count(0);
-    atomic<unsigned int> total_records_executed(0);
-    std::vector<unsigned int> total_latencies(num_threads * currentMaxQueries, 0);
-
+    
     if (do_prepare) {
         BACKEND backend(0); // therad_id = 0 for same table across threads
         //kidsscc:write to cache in prepare phase
@@ -130,36 +161,35 @@ int main(int argc, char* argv[]){
         return 0;
     }
 
-    // 从一个选定的query生成器开始执行，默认为0，第一阶段开始warmup
-    int generator_idx = choosed_workload;
-    long long threshold = do_warmup?WARMTIME:RUNTIME;
-    auto start_time = std::chrono::system_clock::now();
-    auto end_time = std::chrono::system_clock::now();
+    atomic<double> total_throughput(0.0);
+    atomic<double> total_usedtime(0.0);
+    atomic<unsigned int> total_hit_count(0);
+    atomic<unsigned int> total_records_executed(0);
+    std::vector<unsigned int> total_latencies(num_threads * currentMaxQueries, 0);
 
-    //开始执行
-    while(do_run||do_warmup){
-        // 创建多线程执行查询任务
+    bool warmup_finish = !do_warmup;
+    double last_hitrate = -1.0;
+    while(!warmup_finish){
+        std::shared_ptr<Generator> warmup_generator = std::make_shared<Generator>(D_UNIFORM, generators[0]->get_max(), std::vector<double>{});
         std::vector<std::thread> threads;
-        for (int i = 0; i < num_threads; i++) {
-            threads.emplace_back([ i, &total_throughput, &total_usedtime, &total_hit_count, 
-                            &total_records_executed, &total_latencies,
-                            &generators, &generator_idx]() {
+        for(int i=0;i<num_threads;i++){
+            threads.emplace_back([i, &total_throughput, &total_usedtime, &total_hit_count,
+                            &total_records_executed, &total_latencies, &warmup_generator](){
                 CachelibClient cacheclient;
-                BACKEND backend(0);
+                BACKEND backend(i);
                 if (cache_enabled) {
                     cacheclient.addpool(UNIFIED_CACHE_POOL);
                     backend.enable_cache(cacheclient);
                 }
-
                 int adjust_querys = currentMaxQueries;
                 /**
                  * 在warmup阶段，由于冷启动的原因，每一批次执行完成的时间可能较长
                  * 为了避免超出warmup时间限制，对warmup阶段每一批次执行的query进行调整。
                  * 使其能更快速的完成每一轮次，执行时间检查
                  */
-                if(do_warmup && generator_idx == 0)
-                    adjust_querys = 500;
-                DynamicBenchmark benchmark(backend, generators[generator_idx], adjust_querys);
+                // adjust_querys = 500;
+
+                DynamicBenchmark benchmark(backend, warmup_generator, adjust_querys);
                 benchmark.run();
 
                 double throughput = (double) benchmark.records_executed / (double) benchmark.millis_elapsed * 1000;
@@ -169,13 +199,74 @@ int main(int argc, char* argv[]){
                 total_usedtime = total_usedtime + benchmark.millis_elapsed;
                 total_hit_count += backend.hit_count;
                 total_records_executed += benchmark.records_executed;
-                if(generator_idx != 0)
+            });
+        }
+
+        for (auto& thread : threads) {
+            thread.join();
+        }
+
+        BACKEND backend(0);
+        backend.clean_up();
+
+        // 统计数据汇总
+        unsigned int total_percentile_99 = 0;
+        unsigned int average_percentile = 0;
+        vector<unsigned int> top_10;
+        double total_hitrate = (double) total_hit_count / (double) total_records_executed;
+        total_usedtime = total_usedtime/num_threads;
+
+        log_output(total_percentile_99, average_percentile, total_usedtime, total_throughput, total_hitrate);
+
+        // 数据清理
+        total_throughput = 0;
+        total_usedtime = 0;
+        total_hit_count = 0;
+        total_records_executed = 0;
+
+        // warmup 终止
+        if(last_hitrate<0 || (last_hitrate>0 && abs(total_hitrate - last_hitrate)>WARMUP_THRESHOLD)){
+            last_hitrate = total_hitrate;
+        }else{
+            cout<<"Workload warmup finished\n";
+            warmup_finish = true;
+        }
+    }
+
+    // 从一个选定的query生成器开始执行，默认为0
+    int generator_idx = choosed_workload;
+    long long threshold = RUNTIME;
+    auto start_time = std::chrono::system_clock::now();
+    auto end_time = std::chrono::system_clock::now();
+
+    //开始执行
+    while(do_run){
+        // 创建多线程执行查询任务
+        std::vector<std::thread> threads;
+        for (int i = 0; i < num_threads; i++) {
+            threads.emplace_back([ i, &total_throughput, &total_usedtime, &total_hit_count, 
+                    &total_records_executed, &total_latencies, &generators, &generator_idx]() {
+                CachelibClient cacheclient;
+                BACKEND backend(i);
+                if (cache_enabled) {
+                    cacheclient.addpool(UNIFIED_CACHE_POOL);
+                    backend.enable_cache(cacheclient);
+                }
+
+                DynamicBenchmark benchmark(backend, generators[generator_idx], currentMaxQueries);
+                benchmark.run();
+
+                double throughput = (double) benchmark.records_executed / (double) benchmark.millis_elapsed * 1000;
+
+                // aggregate the results
+                total_throughput = total_throughput + throughput;
+                total_usedtime = total_usedtime + benchmark.millis_elapsed;
+                total_hit_count += backend.hit_count;
+                total_records_executed += benchmark.records_executed;
+                // 替换为无锁结构
+                for(size_t idx = 0; idx < benchmark.latencies_ns.size();idx++)
                 {
-                    // 替换为无锁结构
-                    for(size_t idx = 0; idx < benchmark.latencies_ns.size();idx++)
-                    {
-                        total_latencies[idx + currentMaxQueries * i] = benchmark.latencies_ns[idx];
-                    }
+                    total_latencies[idx + currentMaxQueries * i] = benchmark.latencies_ns[idx];
                 }
             });
         }
@@ -189,39 +280,12 @@ int main(int argc, char* argv[]){
         // 统计数据汇总
         unsigned int average_percentile = 0;
         unsigned int total_percentile_99 = 0;
+        vector<unsigned int> top_10;
         average_and_percentile(total_latencies, &average_percentile, &total_percentile_99);
         double total_hitrate = (double) total_hit_count / (double) total_records_executed;
         total_usedtime = total_usedtime/num_threads;
 
-        // 输出完整元日志
-        if (!profile_file.empty()) {
-            std::ofstream out(profile_file + "_meta.log", std::ios::app);
-            out << total_percentile_99 << " " 
-                << average_percentile << " " 
-                << total_usedtime << " "
-                << total_throughput << " " 
-                << total_hitrate << std::endl;
-        }
-
-        if(!profile_file.empty()) {
-            std::ofstream out(profile_file + "_subItem.log", std::ios::app);
-            switch(logInfo){
-                case 0:
-                    out << total_percentile_99 << std::endl;
-                    break;
-                case 3:
-                    out << average_percentile << std::endl;
-                    break;
-                case 4:
-                    out << total_throughput << std::endl;
-                    break;
-                case 5:
-                    out << total_hitrate << std::endl;
-                    break;
-                default:break;
-            }
-        }
-
+        log_output(total_percentile_99, average_percentile, total_usedtime, total_throughput, total_hitrate);
         // 数据清理
         total_throughput = 0;
         total_usedtime = 0;
@@ -234,18 +298,19 @@ int main(int argc, char* argv[]){
 
         // 负载变化
         if(duration >= threshold) {
-            threshold = RUNTIME;
             start_time = std::chrono::system_clock::now();
             generator_idx++;
+
             // 当所有query生成器均用完时，不再进行负载变换，仅按照最后一个query生成器继续执行一轮
-            if(final_eof){
-                break;
-            }
-            if(generator_idx >= (int)generators.size() && !final_eof){
+            if(generator_idx >= (int)generators.size()){
                 // 标识目前已经进入最后一轮
-                generator_idx = generators.size() - 1;
-                final_eof = true;
-            }
+                if(!final_eof){
+                    generator_idx = generators.size() - 1;
+                    final_eof = true;
+                }else{
+                    break;
+                }
+            }            
         }
     }
     

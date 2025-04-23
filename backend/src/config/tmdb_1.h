@@ -24,18 +24,10 @@ Backend {TmdbBackend, MySQLBackend, MongoDBBackend, LevelDBBackend, SQLiteBacken
 
 #define MAX_RECORDS 1048576 // number of records in the database
 #define MAX_FIELDS 1 // number of fields in each record
-#define MAX_FIELD_SIZE 1000 // size of each field (in chars)
-#define MAX_QUERIES 20000
+#define MAX_FIELD_SIZE 10000 // size of each field (in chars)
+#define MAX_QUERIES 100000
 #define QUERY_PROPORTION 1 // proportion of read queries, the rest are insert queries
 #define OUTPUT std::cout
 
-// #define WORKLOAD_TYPE                          \
-//         std::make_shared<Generator>(D_SEQUENTIAL, 3150000, vector<double>{}),         \
-//         std::make_shared<Generator>(D_UNIFORM, 420000, vector<double>{}),         \
-//         std::make_shared<Generator>(D_SEQUENTIAL, 3150000, vector<double>{}),     
-
 #define WORKLOAD_TYPE                          \
-        std::make_shared<Generator>(D_UNIFORM, 1048576, vector<double>{})
-    
-
-
+        std::make_shared<Generator>(D_UNIFORM, 1048576, vector<double>{}),

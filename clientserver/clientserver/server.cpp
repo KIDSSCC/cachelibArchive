@@ -120,7 +120,7 @@ void sharedMemCtl(string appName, int no, CacheHitStatistics* chs)
 {
     int SHARED_MEMORY_SIZE = sizeof(shm_stru);
     string localAppName = appName;
-	// XLOG(INFO) << "Register SHM: " << localAppName;
+	XLOG(INFO) << "Register SHM: " << localAppName;
     // create new shared memory
     int shm_fd = shm_open(localAppName.c_str(), O_CREAT | O_RDWR, 0666);
     if (shm_fd == -1) 
@@ -197,7 +197,6 @@ void sharedMemCtl(string appName, int no, CacheHitStatistics* chs)
                 sem_post(semaphore_Server);
 	    	case SIG_CLOSE:
 				sem_post(semaphore_Server);
-
 				available = false;
 				break;
             default:
@@ -248,7 +247,7 @@ void sharedMemCtl(string appName, int no, CacheHitStatistics* chs)
 	poolRecord[chs->poolName].first--;
 	slockForRecord.clear(memory_order_release);
 
-	// XLOG(INFO) << "Close SHM: " << localAppName;
+	XLOG(INFO) << "Close SHM: " << localAppName;
 	return;
 }
 
@@ -280,7 +279,8 @@ void listen_addpool()
 		return ;
     }
 	
-    while(true){
+	bool isRunning = true;
+    while(isRunning){
 		int client_socket = accept(server_socket, nullptr,nullptr);
 		if(client_socket == -1){
 			XLOG(ERR) << "Error: Failed to accept";
@@ -329,6 +329,7 @@ void listen_addpool()
 				if(bytesSent == -1){
 					XLOG(ERR) << "Error: Failed to send response";
 				}
+				// break仅跳出switch范围，执行close后开始下一轮监听
 				break;
 			}
 			case 'G':{
@@ -355,12 +356,11 @@ void listen_addpool()
 				//end server
 				close(client_socket);
 				close(server_socket);
+				isRunning = false;
 				break;
 			}
 			default:
 				XLOG(ERR) << "Error: Invalid request "<< buf[0];
-				close(client_socket);
-				continue;
 		}
 		close(client_socket);
 	}

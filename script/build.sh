@@ -27,5 +27,5 @@ cd Build
 cmake $CMAKE_PARAMS ..
 make -j
 
-clear
+# clear
 echo "project construction completed"

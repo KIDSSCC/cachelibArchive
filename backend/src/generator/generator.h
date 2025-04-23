@@ -21,6 +21,7 @@ public:
     Generator(Distribution distibution, int workingset_size, vector<double> params);
     ~Generator(){}
     size_t get_num(std::default_random_engine &engine);
+    size_t get_max(){return this->max_records;}
 
     void print();
 

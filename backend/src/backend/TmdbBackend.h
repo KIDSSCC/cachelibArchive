@@ -7,7 +7,7 @@
 #include "tmdb.h"
 #include CONFIG_FILE
 
-#define TMDB_TABLE_PREFIX "/home/md/SHMCachelib/diskdata/"
+#define TMDB_TABLE_PREFIX "/home/md/cachelibArchive/diskdata/"
 
 class TmdbBackend : public Backend {
 public:

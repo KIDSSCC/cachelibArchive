@@ -62,7 +62,7 @@ void average_and_percentile(const std::vector<T>& latencies, T* average_latency,
         {
             if(value > top_elements.back())
             {
-                top_elements[max_size] = value;
+                top_elements[max_size-1] = value;
                 for(size_t i=top_elements.size()-1;i>0;i--)
                 {
                     if(top_elements[i] > top_elements[i-1])
@@ -80,6 +80,5 @@ void average_and_percentile(const std::vector<T>& latencies, T* average_latency,
     }
     *average_latency = average_latency_/latencies.size();
     *p99_latency = top_elements.back();
-
     return;
 }

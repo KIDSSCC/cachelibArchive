@@ -7,7 +7,7 @@
 #define KB_SIZE ((size_t)1024)
 
 // for cachelib header
-#define CACHE_SIZE 8 * GB_SIZE
+#define CACHE_SIZE 20 * GB_SIZE
 #define REDUNDARY_SIZE 4 * MB_SIZE
 
 #define POOL_SIZE 2 * GB_SIZE

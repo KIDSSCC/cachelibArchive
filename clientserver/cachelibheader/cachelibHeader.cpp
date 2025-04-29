@@ -129,12 +129,12 @@ params：
 returns：
     bool：set操作的结果
 */
-bool set_(cachelib::PoolId pid, CacheKey key, const std::string& value)
+bool set_(cachelib::PoolId pid, CacheKey key, const char* value)
 {
-    CacheWriteHandle wh = gCache_->allocate(pid, key, value.size());
+    CacheWriteHandle wh = gCache_->allocate(pid, key, std::strlen(value));
     if(!wh)
         return false;
-    std::memcpy(wh->getMemory(), value.data(), value.size());
+    std::memcpy(wh->getMemory(), value, std::strlen(value));
     gCache_->insertOrReplace(wh);
     return true;
 }
@@ -151,6 +151,7 @@ bool get_(CacheKey key, char getValue[])
 {
     CacheReadHandle rh = gCache_->find(key);
     if(!rh){
+        getValue[0] = '\0';
         return false;
     }
     memcpy(getValue, reinterpret_cast<const char*>(rh->getMemory()), rh->getSize());

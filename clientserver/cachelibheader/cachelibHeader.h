@@ -9,6 +9,7 @@
 
 
 #include<string>
+#include<cstring>
 #include<set>
 #include <config.h>
 
@@ -53,7 +54,7 @@ void destroyCache();
 int addpool_(std::string poolName);
 
 //data access API
-bool set_(cachelib::PoolId pid, CacheKey key, const std::string& value);
+bool set_(cachelib::PoolId pid, CacheKey key, const char* value);
 bool get_(CacheKey key, char getValue[]);
 bool del_(CacheKey key);
 

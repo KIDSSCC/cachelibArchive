@@ -151,7 +151,7 @@ void CachelibClient::haspool()
 /*
 setKV：向缓存中存入
 */
-void CachelibClient::setKV(string key,string value)
+void CachelibClient::setKV(string& key, const string& value)
 {
     this->haspool();
     //锁资源
@@ -160,11 +160,13 @@ void CachelibClient::setKV(string key,string value)
     shm_stru* message=static_cast<shm_stru*>(this->shared_memory);
     message->ctrl=SIG_SET;
     message->pid=this->pid;
+    // memset(message->key,0,sizeof(message->key));
+    // memset(message->value,0,sizeof(message->value));
 
-    memset(message->key,0,sizeof(message->key));
-    memset(message->value,0,sizeof(message->value));
-    strcpy(message->key,(this->prefix+key).c_str());
+    string fullKey = this->prefix+key;
+    strcpy(message->key,fullKey.c_str());
     strcpy(message->value,value.c_str());
+    
     //释放资源
     sem_post(this->semaphore);
     return ;
@@ -175,7 +177,7 @@ getKV：根据key在缓存池内查询value
 params：
     key：待查询的key
 */
-string CachelibClient::getKV(string key)
+string CachelibClient::getKV(const string& key)
 {
     this->haspool();
     //锁资源
@@ -183,28 +185,26 @@ string CachelibClient::getKV(string key)
     //准备要存入共享内存的数据
     shm_stru* message=static_cast<shm_stru*>(this->shared_memory);
     message->ctrl=SIG_GET;
-    memset(message->key,0,sizeof(message->key));
-    memset(message->value,0,sizeof(message->value));
+    // memset(message->key,0,sizeof(message->key));
+    // memset(message->value,0,sizeof(message->value));
 
     strcpy(message->key,(this->prefix+key).c_str());
     sem_post(this->semaphore);
 
     //等待回传
     while(sem_trywait(this->semaphore_GetBack)!=0);
-    memset(this->getValue,0,sizeof(this->getValue));
-
 
     //control cache miss
     double randomNum = dis(gen);
     if(randomNum>=(double)1 - HIT_CONTROL){
-    	strcpy(this->getValue,message->value);
-
-    	//释放资源
+        // 正常返回
+        string cache_ans = message->value;
     	sem_post(this->semaphore_Server);
-    	return this->getValue;
+    	return cache_ans;
     }else{
+        // 模拟miss
 	    sem_post(this->semaphore_Server);
-	    return this->getValue;
+	    return "";
     }
 }
 
@@ -213,7 +213,7 @@ delKV：根据key删除缓存池内的value
 params：
     key：待删除的key
 */
-bool CachelibClient::delKV(string key)
+bool CachelibClient::delKV(string& key)
 {
     this->haspool();
     //锁资源
@@ -221,8 +221,6 @@ bool CachelibClient::delKV(string key)
     //准备要存入共享内存的数据
     shm_stru* message=static_cast<shm_stru*>(this->shared_memory);
     message->ctrl=SIG_DEL;
-    memset(message->key,0,sizeof(message->key));
-    memset(message->value,0,sizeof(message->value));
     strcpy(message->key,(this->prefix+key).c_str());
     //释放资源
     sem_post(this->semaphore);

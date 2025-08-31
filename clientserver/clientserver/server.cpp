@@ -170,7 +170,7 @@ void sharedMemCtl(string appName, int no, CacheHitStatistics* chs)
 			}
 			waitCount++;
 		}
-		bool res =false;
+		[[maybe_unused]] bool res =false;
         switch(getMessage->ctrl)
         {
             case SIG_SET:

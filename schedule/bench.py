@@ -302,7 +302,7 @@ def warmup_and_run(target_workloads, num_cpu, num_bandwidth):
     logging.info('----- Run Done')
 
 if __name__ == '__main__':
-    clear_groups()
+    # clear_groups()
     target_workloads, cache_size, num_cpu, num_bandwidth = get_binary(num_of_workload)
     
     # prepare阶段

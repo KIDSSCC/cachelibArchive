@@ -21,6 +21,7 @@ export LD_LIBRARY_PATH
 
 rm -rf Build
 rm -rf /dev/shm/*
+rm *.log
 
 mkdir -p Build
 cd Build

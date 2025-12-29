@@ -78,7 +78,7 @@ def run_phase(target_workloads):
     procs = []
     for wl in target_workloads:
         tmp = [os.path.join(bin_path, wl[0]), '--cache']
-        tmp.extend(['--loginfo', '0', '--profile', 'log/'])
+        tmp.extend(['--profile', 'log/'])
         tmp[-1] = tmp[-1] + wl[0]
         procs.append(operation(tmp))
 

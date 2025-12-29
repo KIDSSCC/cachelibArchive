@@ -22,7 +22,8 @@
 #include <chrono>
 
 #define WARMUP_THRESHOLD 0.005
-#define RUNTIME 180
+#define WARMTIME 120
+#define RUNTIME 600
 
 bool cache_enabled = false;
 bool do_prepare = false;
@@ -31,7 +32,7 @@ bool do_run = true;
 int num_threads = 1;
 int choosed_workload = 0;
 std::string profile_file = string("bin_") + UNIFIED_CACHE_POOL;
-int logInfo = 0;
+int logInfo = -1;
 int currentMaxQueries = MAX_QUERIES;
 // final_eof初始化为true时，将避免最后额外的一轮执行
 bool final_eof = true;
@@ -113,7 +114,7 @@ void log_output(
             << total_throughput << " " 
             << total_hitrate << std::endl;
     }
-    if(!profile_file.empty()) {
+    if(!profile_file.empty() && logInfo !=-1) {
         std::ofstream out(profile_file + "_subItem.log", std::ios::app);
         switch(logInfo){
             case 0:
@@ -169,9 +170,14 @@ int main(int argc, char* argv[]){
     std::vector<unsigned int> total_latencies(num_threads * currentMaxQueries, 0);
 
     bool warmup_finish = !do_warmup;
-    double last_hitrate = -1.0;
+    [[maybe_unused]] double last_hitrate = -1.0;
+
+    long long warm_threshold = WARMTIME;
+    auto warm_start_time = std::chrono::system_clock::now();
+    auto warm_end_time = std::chrono::system_clock::now();
     while(!warmup_finish){
-        std::shared_ptr<Generator> warmup_generator = std::make_shared<Generator>(D_UNIFORM, generators[0]->get_max(), std::vector<double>{});
+        // std::shared_ptr<Generator> warmup_generator = std::make_shared<Generator>(D_UNIFORM, generators[0]->get_max(), std::vector<double>{});
+        std::shared_ptr<Generator> warmup_generator = generators[0];
         std::vector<std::thread> threads;
         for(int i=0;i<num_threads;i++){
             threads.emplace_back([i, &total_throughput, &total_usedtime, &total_hit_count,
@@ -200,6 +206,10 @@ int main(int argc, char* argv[]){
                 total_usedtime = total_usedtime + benchmark.millis_elapsed;
                 total_hit_count += backend.hit_count;
                 total_records_executed += benchmark.records_executed;
+
+                total_latencies.assign(total_latencies.size(), 0);
+                std::copy(benchmark.latencies_ns.begin(), benchmark.latencies_ns.end(), total_latencies.begin());
+
             });
         }
 
@@ -213,7 +223,7 @@ int main(int argc, char* argv[]){
         // 统计数据汇总
         unsigned int total_percentile_99 = 0;
         unsigned int average_percentile = 0;
-        vector<unsigned int> top_10;
+        average_and_percentile(total_latencies, &average_percentile, &total_percentile_99);
         double total_hitrate = (double) total_hit_count / (double) total_records_executed;
         total_usedtime = total_usedtime/num_threads;
 
@@ -225,10 +235,18 @@ int main(int argc, char* argv[]){
         total_hit_count = 0;
         total_records_executed = 0;
 
-        // warmup 终止
-        if(last_hitrate<0 || (last_hitrate>0 && abs(total_hitrate - last_hitrate)>WARMUP_THRESHOLD)){
-            last_hitrate = total_hitrate;
-        }else{
+        // warmup 终止, 两轮执行的命中率之差小于阈值
+        // if(last_hitrate<0 || (last_hitrate>0 && abs(total_hitrate - last_hitrate)>WARMUP_THRESHOLD)){
+        //     last_hitrate = total_hitrate;
+        // }else{
+        //     cout<<"Workload warmup finished\n";
+        //     warmup_finish = true;
+        // }
+
+        // warmup终止，固定时长warmup
+        warm_end_time = std::chrono::system_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::seconds>(warm_end_time - warm_start_time).count();
+        if(duration >= warm_threshold){
             cout<<"Workload warmup finished\n";
             warmup_finish = true;
         }
@@ -281,7 +299,6 @@ int main(int argc, char* argv[]){
         // 统计数据汇总
         unsigned int average_percentile = 0;
         unsigned int total_percentile_99 = 0;
-        vector<unsigned int> top_10;
         average_and_percentile(total_latencies, &average_percentile, &total_percentile_99);
         double total_hitrate = (double) total_hit_count / (double) total_records_executed;
         total_usedtime = total_usedtime/num_threads;

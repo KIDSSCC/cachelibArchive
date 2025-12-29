@@ -372,19 +372,22 @@ int main(int argc, char* argv[])
 	folly::Init init(&argc, &argv);
 
 	// 命令行参数解析初始化
-	int poolSize = -1;
-	int cacheSize = -1;
-	int defaultPool = 0;
-	size_t g_tmp = 0;
-	cacheSize = FLAGS_c;
+	int poolSize = -1;			// 初始缓存池大小
+	int cacheSize = -1;			// 初始缓存实例大小
+	int defaultPool = 0;		// 是否启用全局缓存
+	size_t g_tmp = 0;			// 缓存调度粒度
+
 	poolSize = FLAGS_p;
+	cacheSize = FLAGS_c;
 	defaultPool = FLAGS_d;
 	g_tmp = FLAGS_g;
 
-	size_conv = g_tmp==0?size_conv:(g_tmp * MB_SIZE);
+	size_conv = g_tmp == 0 ? size_conv : (g_tmp * MB_SIZE);
 
+	// 初始化缓存实例
     initializeCache(cacheSize, poolSize, defaultPool);
     
+	// 启动缓存监听
 	listen_addpool();
 
     destroyCache();

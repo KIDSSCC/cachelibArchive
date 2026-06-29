@@ -1,3 +1,6 @@
 [submodule "schedule/LinUCB"]
 	path = schedule/LinUCB
 	url = git@github.com:KIDSSCC/LinUCBSchedule.git
+[submodule "Client/ThreadPool"]
+	path = Client/ThreadPool
+	url = https://github.com/progschj/ThreadPool.git

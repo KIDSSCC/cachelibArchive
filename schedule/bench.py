@@ -12,7 +12,7 @@ directory_path  = '/home/md/SHMCachelibtmp/Build'
 passwd = 'k15648611412'
 disk_bandwidth = 1024 * 1024
 
-num_of_workload = 25
+num_of_workload = 4
 random_seed = 2175
 
 def generate_even_list(n, C):

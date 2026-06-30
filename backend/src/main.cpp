@@ -235,7 +235,7 @@ int main(int argc, char* argv[]){
         total_hit_count = 0;
         total_records_executed = 0;
 
-        // warmup 终止, 两轮执行的命中率之差小于阈值
+        // // warmup 终止, 两轮执行的命中率之差小于阈值
         // if(last_hitrate<0 || (last_hitrate>0 && abs(total_hitrate - last_hitrate)>WARMUP_THRESHOLD)){
         //     last_hitrate = total_hitrate;
         // }else{
